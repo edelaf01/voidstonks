@@ -727,6 +727,7 @@
     height: 36px !important;
     margin-right: 12px !important;
     margin-left: 8px !important;
+    flex-shrink: 0;
     object-fit: contain;
     transition: transform 0.25s ease-out !important;
     position: relative;

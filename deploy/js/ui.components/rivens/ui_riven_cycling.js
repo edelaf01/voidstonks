@@ -260,7 +260,7 @@ export function consejoCicloHtml({ stats, rolls, tipo, buscados, negOk, isEs, ro
     } else {
         const fila = (etiqueta, o, mejor, bloqueado) => `<div class="riven-ciclo-fila${mejor ? " mejor" : ""}">
             <span>${etiqueta} <small>(${costeCiclo(ciclosHechos, bloqueado).toLocaleString(isEs ? "es-ES" : "en-US", { useGrouping: "always" })}/${tx(isEs, "ciclo", "cycle")})</small></span>
-            <strong>${textoCiclos(o.p, isEs)} · ${textoKuva(o.kuva, isEs)} kuva</strong></div>`;
+            <strong>${textoCiclos(o.p, isEs)} ·</strong><strong>${textoKuva(o.kuva, isEs)} kuva</strong></div>`;
         const b = c.bloqueo;
         const nombreBloqueo = b ? `${b.negativo ? "-" : "+"}${nombreStat(b.stat, typeIdx, isEs)}` : "";
         const veredicto = !b
@@ -273,8 +273,10 @@ export function consejoCicloHtml({ stats, rolls, tipo, buscados, negOk, isEs, ro
                     "Locking does not pay off: double kuva per cycle is not made back.");
         const queda = c.fusionado ? tx(isEs, ` (${nombreStat(c.fusionado, typeIdx, true)} se queda)`, ` (${nombreStat(c.fusionado, typeIdx, false)} stays)`) : "";
         cuerpo = `<div class="riven-ciclo-intro">${tx(isEs, "Hasta sacar un buen riven, de media", "To get a good riven, on average")}${escapeHTML(queda)}:</div>`
+            + `<div class="riven-ciclo-filas">`
             + fila(tx(isEs, "Sin bloquear", "No lock"), c.sinBloqueo, !c.conviene, false)
             + (b ? fila(tx(isEs, `Bloqueando ${escapeHTML(nombreBloqueo)}`, `Locking ${escapeHTML(nombreBloqueo)}`), b, c.conviene, true) : "")
+            + `</div>`
             + `<div class="riven-ciclo-veredicto${c.conviene ? " ok" : ""}">${escapeHTML(veredicto)}</div>`;
     }
 

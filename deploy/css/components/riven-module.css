@@ -1044,17 +1044,30 @@
     color: var(--riven-text-dim);
 }
 
+.riven-ciclo-filas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 6px;
+}
+
 .riven-ciclo-fila {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: baseline;
     padding: 1px 0;
     color: var(--riven-text-dim);
+}
+
+.riven-ciclo-fila > span {
+    min-width: 0;
 }
 
 .riven-ciclo-fila strong {
     color: var(--riven-text-main);
     white-space: nowrap;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 .riven-ciclo-fila.mejor strong,

@@ -474,7 +474,7 @@ function rankingLeaderboardCard(spend) {
             return `
               <div class="vosfor-ranking-row" onclick="toggleVosforPack('${pack.id}')" style="cursor:pointer;">
                 ${rankingMedal(idx)}
-                ${syndicateIconHtml(syn.wikiIcon, syn.icon)}
+                <span class="vosfor-rank-icon">${syndicateIconHtml(syn.wikiIcon, syn.icon)}</span>
                 <div class="vosfor-rank-info">
                   <div class="vosfor-rank-name">${escapeHTML(packName(pack))}</div>
                 </div>
@@ -1626,21 +1626,24 @@ function pixCard(bestRate) {
 
     const rows = pr.rows.map((r, i) => {
         const name = arcName(r.meta);
-        const val = r.ready
-            ? `<b>${r.platPerPix}</b>${PLAT}/pix <span style="opacity:.55;">· R0 ${r.sellR0}${PLAT} · ${r.pix} pix</span>`
-            : `<span style="opacity:.5;">${escapeHTML(t.loading || "…")}</span>`;
-        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06);">
-            <span style="width:22px;text-align:center;">${rankingMedal(i)}</span>
+        const vals = r.ready
+            ? `<span class="vosfor-pix-val"><b>${r.platPerPix}</b>${PLAT}/pix</span><span class="vosfor-pix-val vosfor-pix-dim">· R0 ${r.sellR0}${PLAT}</span><span class="vosfor-pix-val vosfor-pix-dim">· ${r.pix} pix</span>`
+            : `<span class="vosfor-pix-val vosfor-pix-dim">${escapeHTML(t.loading || "…")}</span><span></span><span></span>`;
+        return `<div class="vosfor-pix-row">
+            <span class="vosfor-pix-medal">${rankingMedal(i)}</span>
             ${arcaneImgHtml(r.slug, name)}
-            <span style="flex:1;font-size:0.82rem;">${escapeHTML(name)}</span>
-            <span style="font-size:0.8rem;white-space:nowrap;">${val}</span>
+            <span class="vosfor-pix-name">${escapeHTML(name)}</span>
+            ${vals}
         </div>`;
     }).join("");
 
-    const vosforRow = `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06);opacity:.9;">
-        <span style="width:22px;text-align:center;">${vosforIcon(15)}</span>
-        <span style="flex:1;font-size:0.82rem;">${escapeHTML(es ? `Gastar pix en vosfor (${PACK_COST} = 6 pix)` : `Spend pix on vosfor (${PACK_COST} = 6 pix)`)}</span>
-        <span style="font-size:0.8rem;white-space:nowrap;"><b>${pr.vosforPlatPerPix}</b>${PLAT}/pix</span>
+    const vosforRow = `<div class="vosfor-pix-row vosfor-pix-row--vosfor">
+        <span class="vosfor-pix-medal">${vosforIcon(15)}</span>
+        <span class="vosfor-pix-icon-slot" aria-hidden="true"></span>
+        <span class="vosfor-pix-name">${escapeHTML(es ? `Gastar pix en vosfor (${PACK_COST} = 6 pix)` : `Spend pix on vosfor (${PACK_COST} = 6 pix)`)}</span>
+        <span class="vosfor-pix-val"><b>${pr.vosforPlatPerPix}</b>${PLAT}/pix</span>
+        <span></span>
+        <span></span>
     </div>`;
 
     const verdict = pr.ready
@@ -1653,8 +1656,10 @@ function pixCard(bestRate) {
     return `
       <div class="vosfor-pix-widget">
         <div style="font-size:0.72rem;color:#bbb;margin-bottom:6px;">${escapeHTML(es ? `Cada arcano cuesta 5 pix a R0; ${PACK_COST} vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo).` : `Each arcane costs 5 pix at R0; ${PACK_COST} vosfor cost 6 pix. Realizable sale price (not the raw listing).`)}</div>
-        ${rows}
-        ${vosforRow}
+        <div class="vosfor-pix-list">
+          ${rows}
+          ${vosforRow}
+        </div>
         <div style="font-size:0.74rem;color:#cbb3e0;margin-top:8px;">${escapeHTML(verdict)}</div>
       </div>`;
 }

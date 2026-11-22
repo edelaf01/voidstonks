@@ -128,6 +128,55 @@
     padding: 16px;
 }
 
+.vosfor-pix-list {
+    display: grid;
+    grid-template-columns: 22px 56px minmax(0, 1fr) auto auto auto;
+    column-gap: 8px;
+}
+
+.vosfor-pix-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+    padding: 5px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    min-width: 0;
+}
+
+.vosfor-pix-row--vosfor {
+    opacity: 0.9;
+}
+
+.vosfor-pix-medal {
+    width: 22px;
+    text-align: center;
+}
+
+.vosfor-pix-icon-slot {
+    width: 56px;
+    height: 56px;
+}
+
+.vosfor-pix-name {
+    min-width: 0;
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vosfor-pix-val {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.vosfor-pix-dim {
+    opacity: 0.55;
+}
+
 .vosfor-arc-img {
     width: 56px;
     height: 56px;
@@ -185,6 +234,14 @@
     height: 135px !important;
     object-fit: contain;
     filter: drop-shadow(0 5px 12px rgba(0,0,0,0.9));
+}
+
+.vosfor-rank-icon {
+    width: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 .vosfor-ranking-row .vosfor-syndicate-img {
@@ -538,6 +595,7 @@ select.vosfor-select {
     font-size: 0.95rem;
     font-weight: 800;
     color: #42f56c;
+    font-variant-numeric: tabular-nums;
 }
 
 
@@ -1308,17 +1366,45 @@ select.vosfor-select {
 }
 
 .vos-sind-lineas {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    column-gap: 6px;
+    row-gap: 2px;
+    max-width: 100%;
     font-size: 0.78rem;
     color: #ccc;
-    text-align: right;
+    text-align: left;
+}
+
+.vos-sind-linea {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    min-width: 0;
 }
 
 .vos-sind-etiqueta {
     color: #888;
-    margin-right: 6px;
+    white-space: nowrap;
+}
+
+.vos-sind-item {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vos-sind-val {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.vos-sind-vacio {
+    grid-column: 2 / -1;
+    min-width: 0;
 }
 
 .vos-sind-marca,
@@ -1365,6 +1451,7 @@ select.vosfor-select {
     text-align: right;
     padding: 8px 8px;
     color: #ddd;
+    font-variant-numeric: tabular-nums;
 }
 
 .vos-sind-num.vos-sind-gana {
@@ -1402,4 +1489,37 @@ select.vosfor-select {
 
 .vos-sind-grid .vos-sind-lineas {
     text-align: left;
+}
+
+@media (max-width: 768px) {
+    .vosfor-pix-list {
+        grid-template-columns: 20px 32px minmax(0, 1fr) auto auto auto;
+        column-gap: 5px;
+    }
+
+    .vosfor-pix-row .vosfor-arc-img,
+    .vosfor-pix-icon-slot {
+        width: 32px;
+        height: 32px;
+        padding: 2px;
+    }
+
+    .vosfor-pix-name,
+    .vosfor-pix-val {
+        font-size: 0.74rem;
+    }
+
+    .vosfor-rank-icon {
+        width: 56px;
+    }
+
+    .vosfor-ranking-row .vosfor-syndicate-img {
+        width: 48px;
+        height: 48px;
+    }
+
+    .vosfor-ranking-row .vosfor-jade-img {
+        width: 56px !important;
+        height: 56px !important;
+    }
 }

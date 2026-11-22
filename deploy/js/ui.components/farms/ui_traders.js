@@ -195,7 +195,7 @@ function itemListHtml(items, costLabel, withCredits, opts = {}) {
       const sets = opts.sets ? opts.sets(it) : [];
       const prog = sets.length ? progresoSets(sets) : null;
       if (prog?.total) return setItemHtml(it, icons, costs, sets, prog);
-      return `<li class="tr-item">${icons}<span class="tr-item-name">${escapeHTML(prettyTraderItem(it))}</span><span class="tr-item-cost">${costs.join(" · ")}</span></li>`;
+      return `<li class="tr-item">${icons || `<span class="tr-icons"></span>`}<span class="tr-item-name">${escapeHTML(prettyTraderItem(it))}</span><span class="tr-item-cost">${costs.join(" · ")}</span></li>`;
     })
     .join("")}</ul>`;
 }

@@ -29,24 +29,23 @@ function celdaVosfor(f, { t, plat, vos }) {
     return celda(f.vosPorMil, detalle, f.cargado && f.plEquivalente > f.renta);
 }
 
-function lineaPlatino(s, { t, nombreDe, plat }) {
+function lineaPlatino(s, { t, nombreDe }) {
     const m = s.mejorPl;
-    const valor = m
-        ? `${escapeHTML(nombreDe(m.slug))} · ${m.mejor === "set" ? `R${m.rangoMax}` : "R0"} · <b>${uno(m.renta)}</b>${plat}/1000`
-        : escapeHTML(t.syndLoading || "Cargando precios…");
-    return `<div class="vos-sind-linea"><span class="vos-sind-etiqueta">${escapeHTML(t.syndBestPl || "Mejor para platino")}</span><span>${valor}</span></div>`;
+    const celdas = m
+        ? `<span class="vos-sind-item">${escapeHTML(nombreDe(m.slug))}</span><span class="vos-sind-val">· <b>${uno(m.renta)}</b></span><span></span>`
+        : `<span class="vos-sind-vacio">${escapeHTML(t.syndLoading || "Cargando precios…")}</span>`;
+    return `<div class="vos-sind-linea"><span class="vos-sind-etiqueta">${escapeHTML(t.syndSortPl || "Platino")}</span>${celdas}</div>`;
 }
 
-function lineaVosfor(s, { t, nombreDe, plat, vos }) {
+function lineaVosfor(s, { t, nombreDe }) {
     const m = s.mejorVos;
-    let valor = escapeHTML(t.syndNoData || "sin dato");
+    let celdas = `<span class="vos-sind-vacio">${escapeHTML(t.syndNoData || "sin dato")}</span>`;
     if (m) {
-        const empates = s.empatesVos > 1 ? ` ${escapeHTML((t.syndTies || "(y {n} más igual)").replace("{n}", s.empatesVos - 1))}` : "";
-        const aprox = m.plEquivalente ? ` ≈ ${uno(m.plEquivalente)}${plat}` : "";
-        const marca = s.disolverRindeMas ? ` <span class="vos-sind-marca">${escapeHTML(t.syndDissolveBetter || "disolver rinde más")}</span>` : "";
-        valor = `${escapeHTML(nombreDe(m.slug))}${empates} · <b>${uno(m.vosPorMil)}</b>${vos}/1000${aprox}${marca}`;
+        const empates = s.empatesVos > 1 ? ` (+${s.empatesVos - 1})` : "";
+        const marca = s.disolverRindeMas ? `<span class="vos-sind-marca" title="${escapeHTML(t.syndDissolveBetter || "disolver rinde más")}">▲</span>` : "";
+        celdas = `<span class="vos-sind-item">${escapeHTML(nombreDe(m.slug))}${empates}</span><span class="vos-sind-val">· <b>${uno(m.vosPorMil)}</b></span><span>${marca}</span>`;
     }
-    return `<div class="vos-sind-linea"><span class="vos-sind-etiqueta">${escapeHTML(t.syndBestVos || "Mejor para Vosfor")}</span><span>${valor}</span></div>`;
+    return `<div class="vos-sind-linea"><span class="vos-sind-etiqueta">${escapeHTML(t.syndSortVos || "Vosfor")}</span>${celdas}</div>`;
 }
 
 const LIMITE_FILAS = 10;

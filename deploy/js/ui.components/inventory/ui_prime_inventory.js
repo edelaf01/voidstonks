@@ -446,8 +446,8 @@ export function renderPrimeInventory() {
                   ${(() => {
                   const partIcon = getItemIcon(partName);
                   return partIcon
-                    ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
-                    : "";
+                    ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.visibility='hidden'">`
+                    : `<span class="item-icon-mini" style="visibility:hidden;" aria-hidden="true"></span>`;
                 })()}
                    <div class="name-column">
                      <span class="part-name">${escapeHTML(shortName)}</span>
