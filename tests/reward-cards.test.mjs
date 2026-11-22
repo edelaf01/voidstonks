@@ -48,6 +48,17 @@ test("colaRotulo extiende la banda por debajo del borde inferior del arte", () =
   assert.equal(res.y + res.h, 244);
 });
 
+test("subeRotulo sube el inicio de la banda por encima del borde inferior del arte", () => {
+  const img = makeImage(1000, 500, 20);
+  drawRect(img, 200, 100, 60, 90, 240);
+  drawRect(img, 500, 100, 60, 90, 240);
+  drawRect(img, 800, 100, 60, 90, 240);
+
+  const res = detectCardRow(img, { subeRotulo: 1 });
+  assert.equal(res.y, 100);
+  assert.equal(res.h, 216);
+});
+
 test("un solo rectangulo no forma fila y devuelve null", () => {
   const img = makeImage(1000, 500, 20);
   drawRect(img, 400, 100, 180, 90, 240);
