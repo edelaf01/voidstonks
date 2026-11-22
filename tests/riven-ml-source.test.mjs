@@ -39,9 +39,10 @@ const preciosEsperados = async (arma, stats, registro = null) => {
   const de10 = await NT.cargarDe10();
   const { positivos, negativo } = NT.atributosAWfm(stats, 0);
   const residuos = NT.residuosTirada(nt, arma, positivos, negativo, registro);
-  const fila = NT.filaDe10(de10, arma);
+  const filaDe = NT.filaDe10(de10, arma);
+  const fila = NT.filaConNivelModelo(nt, arma, filaDe);
   const poblacion = NT.poblacionTirada(nt, arma, nt.armas[NT.nombreArma(nt, arma)]?.tipo);
-  return NT.preciosDe10(fila, NT.percentilTirada(poblacion, residuos[1]), [0.25, 0.5, 0.8, 0.9, 0.95], nt.rho, NT.primaDe10(nt, fila[3])).map(Math.round);
+  return NT.preciosDe10(fila, NT.percentilTirada(poblacion, residuos[1]), [0.25, 0.5, 0.8, 0.9, 0.95], nt.rho, fila === filaDe ? NT.primaDe10(nt, fila[3]) : 0).map(Math.round);
 };
 
 test("con de10 que falla al cargar la tasación cae a la curva", async () => {

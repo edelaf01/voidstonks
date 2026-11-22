@@ -1,8 +1,8 @@
 import { getRivenSlug } from "../utils/slugs.utils.js";
 
-export const RIVEN_API_BASE = "https://soft-mountain-28fe.edelamf0.workers.dev/api";
+export const RIVEN_API_BASE = "https://rivens.voidstonks.com/api";
 
-export const ARB_API_BASE = "https://wf-tool-proxy-worker.edelamf0.workers.dev/api";
+export const ARB_API_BASE = "https://arb.voidstonks.com/api";
 
 export async function fetchCurrentRivens() {
   const response = await fetch(`${RIVEN_API_BASE}/rivens`);

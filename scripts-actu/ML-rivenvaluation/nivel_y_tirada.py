@@ -262,7 +262,7 @@ def matriz_caracteristicas(tabla, contexto, pliegue_por_indice=None):
         filas_resultado.append(fila_caracteristicas(fila_datos, efectos, contexto))
     return pd.DataFrame(filas_resultado, index=tabla.index, columns=contexto["columnas"])
 
-def entrenar_modelo(matriz_entreno, residuos_entreno, matriz_validacion, residuos_validacion, pesos_entreno, pesos_validacion):
+def entrenar_modelo(matriz_entreno, residuos_entreno, matriz_validacion, residuos_validacion, pesos_entreno, pesos_validacion, matriz_completa=None, residuos_completos=None, pesos_completos=None):
     modelo_base = xgboost.XGBRegressor(
         objective="reg:quantileerror",
         quantile_alpha=list(CUANTILES),
@@ -285,9 +285,10 @@ def entrenar_modelo(matriz_entreno, residuos_entreno, matriz_validacion, residuo
         verbose=False
     )
     numero_arboles = modelo_base.best_iteration + 1
-    matriz_completa = pd.concat([matriz_entreno, matriz_validacion])
-    residuos_completos = pd.concat([residuos_entreno, residuos_validacion])
-    pesos_completos = np.concatenate([pesos_entreno, pesos_validacion])
+    if matriz_completa is None:
+        matriz_completa = pd.concat([matriz_entreno, matriz_validacion])
+        residuos_completos = pd.concat([residuos_entreno, residuos_validacion])
+        pesos_completos = np.concatenate([pesos_entreno, pesos_validacion])
     modelo_final = xgboost.XGBRegressor(
         objective="reg:quantileerror",
         quantile_alpha=list(CUANTILES),
@@ -311,13 +312,23 @@ def predecir_precios(modelo, matriz_caracteristicas, log_niveles):
     predicciones = np.sort(predicciones, axis=1)
     return np.exp(predicciones + log_niveles.values[:, None])
 
+def preparar_entreno(tabla_completa, indices, pesos, con_tendencia):
+    niveles, conteos, pendiente = nivel_y_tendencia(tabla_completa.loc[indices], pesos, con_tendencia)
+    tabla_solo_entreno = tabla_completa.loc[indices].copy()
+    tabla_solo_entreno["r"] = np.log(tabla_solo_entreno["precio_primero"]) - (tabla_solo_entreno["weapon"].map(niveles).fillna(0) + tabla_solo_entreno["dia"] * pendiente)
+    tabla_solo_entreno["peso"] = pesos
+    tabla_solo_entreno["pliegue"] = np.random.default_rng(SEMILLA).integers(0, PLIEGUES, len(indices))
+    contexto = contexto_caracteristicas(tabla_solo_entreno, niveles, conteos)
+    matriz = matriz_caracteristicas(tabla_solo_entreno, contexto, tabla_solo_entreno["pliegue"].to_dict())
+    return niveles, conteos, pendiente, contexto, matriz, tabla_solo_entreno["r"]
+
 def correr_variante(tabla_completa, mascara_entreno, con_tendencia, usar_xgboost):
     indices_entrenamiento = tabla_completa[mascara_entreno].index
     pesos_entrenamiento = 0.5 ** (-tabla_completa.loc[indices_entrenamiento, "dia"] / VIDA_MEDIA)
     mascara_primera_vista = tabla_completa.loc[indices_entrenamiento, "primera_vista"] & ~tabla_completa.loc[indices_entrenamiento, "fresco"]
     pesos_entrenamiento[mascara_primera_vista] *= PESO_PRIMERA_VISTA
-    niveles_ajustados, conteos_arma, pendiente = nivel_y_tendencia(tabla_completa.loc[indices_entrenamiento], pesos_entrenamiento, con_tendencia)
     if not usar_xgboost:
+        niveles_ajustados, conteos_arma, pendiente = nivel_y_tendencia(tabla_completa.loc[indices_entrenamiento], pesos_entrenamiento, con_tendencia)
         log_niveles_entreno = tabla_completa.loc[indices_entrenamiento, "weapon"].map(niveles_ajustados).fillna(0) + tabla_completa.loc[indices_entrenamiento, "dia"] * pendiente
         residuos_entreno = np.log(tabla_completa.loc[indices_entrenamiento, "precio_primero"]) - log_niveles_entreno
         cuantiles_residuos = [cuantil_ponderado(residuos_entreno.values, pesos_entrenamiento.values, cuantil) for cuantil in CUANTILES]
@@ -325,27 +336,28 @@ def correr_variante(tabla_completa, mascara_entreno, con_tendencia, usar_xgboost
             log_niveles_eval = tabla_evaluacion["weapon"].map(niveles_ajustados).fillna(0) + tabla_evaluacion["dia"] * pendiente
             return np.exp(log_niveles_eval.values[:, None] + np.array(cuantiles_residuos)[None, :])
         return predecir_simple, niveles_ajustados, conteos_arma, pendiente, None, 0, None
-    tabla_solo_entreno = tabla_completa.loc[indices_entrenamiento].copy()
-    tabla_solo_entreno["r"] = np.log(tabla_solo_entreno["precio_primero"]) - (tabla_solo_entreno["weapon"].map(niveles_ajustados).fillna(0) + tabla_solo_entreno["dia"] * pendiente)
-    tabla_solo_entreno["peso"] = pesos_entrenamiento
-    tabla_solo_entreno["pliegue"] = np.random.default_rng(SEMILLA).integers(0, PLIEGUES, len(indices_entrenamiento))
-    contexto = contexto_caracteristicas(tabla_solo_entreno, niveles_ajustados, conteos_arma)
-    matriz_entreno = matriz_caracteristicas(tabla_solo_entreno, contexto, tabla_solo_entreno["pliegue"].to_dict())
-    residuos = tabla_solo_entreno["r"]
+    niveles_ajustados, conteos_arma, pendiente, contexto, matriz_entreno, residuos = preparar_entreno(tabla_completa, indices_entrenamiento, pesos_entrenamiento, con_tendencia)
     fechas = tabla_completa.loc[indices_entrenamiento, "primera_fecha"]
     mascara_validacion = fechas >= fechas.sort_values().iloc[int(len(fechas) * 0.85)] if RECIENTES else tabla_completa.loc[indices_entrenamiento, "dia"] >= -DIAS_VALIDACION
     indices_t = indices_entrenamiento[~mascara_validacion]
     indices_v = indices_entrenamiento[mascara_validacion]
-    if len(indices_v) == 0:
+    if len(indices_v) == 0 or len(indices_t) == 0:
         indices_t = indices_entrenamiento
         indices_v = indices_entrenamiento[:2]
-    pesos_t = pesos_entrenamiento[~mascara_validacion]
-    pesos_v = pesos_entrenamiento[mascara_validacion]
+    pesos_t = pesos_entrenamiento.loc[indices_t]
+    pesos_v = pesos_entrenamiento.loc[indices_v]
+    if len(indices_t) == len(indices_entrenamiento):
+        matriz_t, residuos_t = matriz_entreno.loc[indices_t], residuos.loc[indices_t]
+        matriz_v, residuos_v = matriz_entreno.loc[indices_v], residuos.loc[indices_v]
+    else:
+        _, _, pendiente_t, contexto_t, matriz_t, residuos_t = preparar_entreno(tabla_completa, indices_t, pesos_t, con_tendencia)
+        tabla_v = tabla_completa.loc[indices_v]
+        matriz_v = matriz_caracteristicas(tabla_v, contexto_t)
+        residuos_v = np.log(tabla_v["precio_primero"]) - (tabla_v["weapon"].map(contexto_t["niveles"]).fillna(0) + tabla_v["dia"] * pendiente_t)
     modelo_xgboost, arboles_xgboost = entrenar_modelo(
-        matriz_entreno.loc[indices_t], residuos.loc[indices_t],
-        matriz_entreno.loc[indices_v], residuos.loc[indices_v],
-        pesos_t.values if isinstance(pesos_t, pd.Series) else pesos_t,
-        pesos_v.values if isinstance(pesos_v, pd.Series) else pesos_v
+        matriz_t, residuos_t, matriz_v, residuos_v,
+        pesos_t.values, pesos_v.values,
+        matriz_entreno, residuos, pesos_entrenamiento.values
     )
     def predecir_xgboost(tabla_evaluacion):
         matriz_evaluacion = matriz_caracteristicas(tabla_evaluacion, contexto)

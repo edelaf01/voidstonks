@@ -313,7 +313,7 @@ function inventorySection(orders) {
     }
 
     const head = el("div", "orders-section-head");
-    head.append(el("span", "orders-section-title", t.sectionInv));
+    head.append(el("span", "orders-section-title", t.sectionInv), botonRevisarPrecios(orders, loadOrders));
     box.appendChild(head);
     box.appendChild(el("p", "orders-inv-hint", t.invHint));
     const buscar = Object.assign(el("input", "orders-input orders-search"), { type: "search", placeholder: t.searchPh });

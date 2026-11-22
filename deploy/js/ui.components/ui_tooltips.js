@@ -29,7 +29,7 @@ export function generateSetProgressTooltip(setName) {
     partsList = state.setsDatabase[setName];
   } else {
     if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
-    if (!globalThis.setPartsCache.has(setName)) {
+    if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
       const parts = Object.keys(state.itemsDatabase || {}).filter(
         (name) =>
           (name === setName || name.startsWith(setName + " ")) &&

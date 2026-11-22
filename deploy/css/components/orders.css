@@ -1023,6 +1023,13 @@ a.order-name:hover {
     display: none;
 }
 
+.orders-layout > .orders-inv,
+.orders-layout > .orders-main {
+    width: 100%;
+    max-width: 900px;
+    margin-inline: auto;
+}
+
 .orders-layout > .orders-inv {
     margin-top: 0;
     padding-top: 0;
@@ -1173,8 +1180,8 @@ a.order-name:hover {
     grid-template-columns: 34px minmax(0, 1fr) 74px auto auto;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
-    margin-bottom: 6px;
+    padding: 6px 10px;
+    margin-bottom: 5px;
     background: var(--wf-card);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 7px;
@@ -1188,7 +1195,7 @@ a.order-name:hover {
 }
 
 #orders-content .inv-name {
-    font-size: 0.85rem;
+    font-size: 1.05rem;
     font-weight: 600;
     text-transform: none;
     letter-spacing: normal;
@@ -1199,7 +1206,7 @@ a.order-name:hover {
 }
 
 #orders-content .inv-meta {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: #8e8e8e;
 }
 

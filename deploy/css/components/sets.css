@@ -871,15 +871,6 @@
     padding: 1px 7px;
 }
 
-#setResults .sets-bridge-sort {
-    margin-left: auto;
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 100%;
-    font-size: 0.72rem;
-    padding: 3px 6px;
-}
-
 #setResults .sets-bridge-more {
     margin-top: 8px;
     padding: 0;
@@ -1020,6 +1011,7 @@
     margin-left: 0;
     flex: 1 1 10rem;
     min-width: 0;
+    max-width: 100%;
     font-size: 0.82rem;
     padding: 7px 8px;
 }
