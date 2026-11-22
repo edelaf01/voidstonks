@@ -333,12 +333,12 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const tipoCrudo = state.weaponDetailsDB?.find?.(w => w.name === wname)?.type ?? null;
   const conocida = nombreArma(nt, wname);
   const filaDe = filaDe10(de10, wname, deRe);
-  const fila = filaConNivelModelo(nt, de10, wname, filaDe);
+  const fila = filaConNivelModelo(nt, wname, filaDe);
   const registro = fila && !conocida ? registroSinWfm(nt, nivelSinWfm(nt, wname, fila), RIVEN_DISPOSITION, tipoCrudo) : null;
   const residuos = fila ? residuosTirada(nt, wname, positivos, negativo, registro) : null;
   if (residuos) {
     const poblacion = poblacionTirada(nt, wname, tipoCrudo ?? nt.armas[conocida]?.tipo ?? ((weaponData && weaponData.t) || weapon.t));
-    const suelo = usaDE && (Number(popSuelo) || 0) >= POP_FIABLE ? floor : 1;
+    const suelo = fila === filaDe && usaDE && (Number(popSuelo) || 0) >= POP_FIABLE ? floor : 1;
     preciosDe10(fila, percentilTirada(poblacion, residuos[1]), qs, nt.rho, fila === filaDe ? primaDe10(nt, fila[3]) : 0).forEach((v, i) => { out[qs[i]] = Math.max(suelo, Math.round(v)); });
   } else {
     for (const a of qs) {

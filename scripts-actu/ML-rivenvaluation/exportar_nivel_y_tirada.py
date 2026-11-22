@@ -61,7 +61,8 @@ def armas_cortadas(tabla):
 def precision_por_arma(cortadas):
     nyt.CORTE = CORTE_PRECISION
     tabla = nyt.leer_anuncios()
-    predictor = nyt.correr_variante(tabla, tabla["entreno"] & tabla["fresco"] & ~tabla["weapon"].isin(cortadas), False, True)[0]
+    variante = nyt.correr_variante(tabla, tabla["entreno"] & tabla["fresco"] & ~tabla["weapon"].isin(cortadas), False, True)
+    predictor = variante[0]
     prueba = tabla[tabla["prueba"] & tabla["fresco"] & tabla["weapon"].isin(predictor.contexto["niveles"])]
     precios = predictor(prueba)
     p50 = precios[:, 1]
@@ -73,7 +74,7 @@ def precision_por_arma(cortadas):
         n = len(grupo)
         if n >= MIN_PRECISION:
             resultado[arma] = {"mape": round(float(np.mean(grupo["ape"]) * 100), 1), "n": int(n)}
-    return {k: resultado[k] for k in sorted(resultado)}
+    return {k: resultado[k] for k in sorted(resultado)}, tabla, variante
 
 def arboles_por_cuantil(modelo, columnas):
     bruto = json.loads(bytes(modelo.get_booster().save_raw("json")).decode("utf-8"))
@@ -200,7 +201,7 @@ def mediana_tirada(modelo, columnas, filas):
     x = pd.DataFrame(np.asarray(filas, dtype=np.float32), columns=columnas)
     return np.sort(modelo.predict(x).reshape(-1, len(CUANTILES_APP)), axis=1)[:, 1]
 
-def poblaciones(tabla, contexto, modelo, sin):
+def poblaciones(tabla, contexto, modelo, sin, matriz):
     with open(DE10, encoding="utf-8") as f:
         de10 = json.load(f)["familias"]
     armas = escala_de10.armas_del_catalogo()
@@ -220,7 +221,10 @@ def poblaciones(tabla, contexto, modelo, sin):
 
     conocida = np.isin(armas_frescas, sorted(contexto["niveles"]))
     idx = np.where(conocida)[0]
-    r = mediana_tirada(modelo, columnas, [nyt.fila_caracteristicas(registros[i], contexto["efectos"]["todos"], contexto) for i in idx])
+    x_conocidas = matriz.reindex(frescos.index[idx]).to_numpy(dtype=np.float64)
+    for j in np.where(~frescos.index[idx].isin(matriz.index))[0]:
+        x_conocidas[j] = np.asarray(nyt.fila_caracteristicas(registros[idx[j]], contexto["efectos"]["todos"], contexto), dtype=np.float64)
+    r = mediana_tirada(modelo, columnas, x_conocidas)
     pob = {}
     for f in sorted(set(fam[idx])):
         valores = r[fam[idx] == f]
@@ -271,7 +275,10 @@ def prima_de10(filas, predicciones, cortes=CORTES_PRIMA):
         if p.get("fuente") != "de10" or pop10 is None or pop10 < cortes[0] or not app or app <= 0 or not fila["precio"] > 0:
             continue
         grupos[bisect.bisect_right(cortes, pop10) - 1].append(math.log(fila["precio"]) - math.log(app))
-    return {"cortes": list(cortes), "valores": [0.0] + [round(float(np.median(g)), 4) if g else 0.0 for g in grupos]}
+    valores = [0.0] + [round(float(np.median(g)), 4) if g else 0.0 for g in grupos]
+    for i in range(1, len(valores)):
+        valores[i] = max(valores[i], valores[i - 1])
+    return {"cortes": list(cortes), "valores": valores}
 
 def prima_modelo(salida, tabla, ruta_de):
     filas = filas_evaluables(tabla)
@@ -282,21 +289,15 @@ def prima_modelo(salida, tabla, ruta_de):
             json.dump(salida, f, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         with open(ruta_filas, "w", encoding="utf-8") as f:
             json.dump(filas, f, ensure_ascii=False)
-        predicciones = cm.evaluar_node(modelo, ruta_filas, ruta_de, os.path.join(carpeta, "pred.json"))
+        os.environ["EVALUAR_CIEGO"] = "1"
+        try:
+            predicciones = cm.evaluar_node(modelo, ruta_filas, ruta_de, os.path.join(carpeta, "pred.json"))
+        finally:
+            os.environ.pop("EVALUAR_CIEGO", None)
     return prima_de10(filas, predicciones)
 
-def main():
-    nyt.CUANTILES = CUANTILES_APP
-    cortadas = armas_cortadas(nyt.leer_anuncios())
-    precision = precision_por_arma(cortadas)
-    nyt.CORTE = CORTE_FINAL
-    tabla = nyt.leer_anuncios()
-    mascara = tabla["entreno"] & tabla["fresco"] & ~tabla["weapon"].isin(cortadas)
-    predictor, _, conteos, _, modelo, n_arboles, matriz = nyt.correr_variante(tabla, mascara, False, True)
-    contexto = predictor.contexto
+def construir_salida(contexto, modelo, precision):
     bases, por_cuantil = arboles_por_cuantil(modelo, contexto["columnas"])
-    muestra = matriz.tail(FILAS_COMPROBACION)
-    diferencia = comprobar(modelo, bases, por_cuantil, muestra)
     globales_pos, locales_pos, globales_neg, locales_neg = contexto["efectos"]["todos"]
     salida = {
         "fecha_datos": FECHA_DATOS,
@@ -325,11 +326,30 @@ def main():
         "precision": precision,
         "modelo": {"base": bases, "arboles": por_cuantil}
     }
+    return salida, bases, por_cuantil
+
+def main():
+    nyt.CUANTILES = CUANTILES_APP
+    cortadas = armas_cortadas(nyt.leer_anuncios())
+    precision, tabla_p, variante_p = precision_por_arma(cortadas)
+    nyt.CORTE = CORTE_FINAL
+    tabla = nyt.leer_anuncios()
+    mascara = tabla["entreno"] & tabla["fresco"] & ~tabla["weapon"].isin(cortadas)
+    predictor, _, conteos, _, modelo, n_arboles, matriz = nyt.correr_variante(tabla, mascara, False, True)
+    contexto = predictor.contexto
+    salida, bases, por_cuantil = construir_salida(contexto, modelo, precision)
+    muestra = matriz.tail(FILAS_COMPROBACION)
+    diferencia = comprobar(modelo, bases, por_cuantil, muestra)
     if len(sys.argv) > 1:
         with open(sys.argv[1], encoding="utf-8") as f:
-            salida["sin_wfm"] = armas_sin_wfm.calcular(salida, json.load(f), armas_sin_wfm.dispo_por_arma())
-        salida.update(poblaciones(tabla, contexto, modelo, salida["sin_wfm"]))
-        salida["prima_de10"] = prima_modelo(salida, tabla[mascara], os.path.abspath(sys.argv[1]))
+            de = json.load(f)
+        salida["sin_wfm"] = armas_sin_wfm.calcular(salida, de, armas_sin_wfm.dispo_por_arma())
+        salida.update(poblaciones(tabla, contexto, modelo, salida["sin_wfm"], matriz))
+        contexto_p, modelo_p, matriz_p = variante_p[0].contexto, variante_p[4], variante_p[6]
+        previa = construir_salida(contexto_p, modelo_p, precision)[0]
+        previa["sin_wfm"] = armas_sin_wfm.calcular(previa, de, armas_sin_wfm.dispo_por_arma())
+        previa.update(poblaciones(tabla_p[tabla_p["entreno"]], contexto_p, modelo_p, previa["sin_wfm"], matriz_p))
+        salida["prima_de10"] = prima_modelo(previa, tabla_p[tabla_p["prueba"] & tabla_p["fresco"]], os.path.abspath(sys.argv[1]))
     with open(DESTINO, "w", encoding="utf-8") as f:
         json.dump(salida, f, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     paridad = filas_paridad(tabla[mascara], contexto, modelo)

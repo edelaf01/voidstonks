@@ -296,35 +296,12 @@ export function nivelSinWfm(modelo, nombre, fila) {
     return fila[3] >= POP_FIABLE ? fila[0] : sin.nivel[0] * fila[0] + sin.nivel[1];
 }
 
-const _desfases = new WeakMap();
-
-export function desfaseNivel(modelo, de10) {
-    if (!modelo?.armas || !de10?.familias) return NaN;
-    const previo = _desfases.get(modelo);
-    if (previo && previo.de10 === de10) return previo.valor;
-    const vistas = new Set();
-    const difs = [];
-    for (const [nombre, arma] of Object.entries(modelo.armas)) {
-        const familia = claveFamilia(nombre, de10.familias);
-        if (!familia || vistas.has(familia)) continue;
-        vistas.add(familia);
-        const fila = de10.familias[familia];
-        if (fila[3] >= POP_FIABLE && Number.isFinite(arma.nivel)) difs.push(fila[0] - arma.nivel);
-    }
-    difs.sort((a, b) => a - b);
-    const n = difs.length;
-    const valor = n === 0 ? NaN : n % 2 ? difs[(n - 1) / 2] : (difs[n / 2 - 1] + difs[n / 2]) / 2;
-    _desfases.set(modelo, { de10, valor });
-    return valor;
-}
-
-export function filaConNivelModelo(modelo, de10, nombre, fila) {
-    if (!fila || fila[3] >= POP_FIABLE) return fila;
+export function filaConNivelModelo(modelo, nombre, fila) {
+    if (!fila) return fila;
     const conocida = nombreArma(modelo, nombre);
     const nivel = conocida ? modelo.armas[conocida].nivel : NaN;
-    const desfase = desfaseNivel(modelo, de10);
-    if (!Number.isFinite(nivel) || !Number.isFinite(desfase)) return fila;
-    return [nivel + desfase, ...fila.slice(1)];
+    if (!Number.isFinite(nivel)) return fila;
+    return [nivel, ...fila.slice(1)];
 }
 
 export function poblacionTirada(modelo, nombre, tipo) {
