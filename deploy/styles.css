@@ -3831,11 +3831,16 @@ body.theme-vosfor {
   }
 
   .tab-btn span {
-    display: block !important;
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     max-width: 100% !important;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    text-align: center;
   }
 
   .tab-btn .tab-icon-img {

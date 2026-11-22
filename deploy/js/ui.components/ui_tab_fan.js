@@ -67,10 +67,6 @@ function applyReflow(all) {
 
   const activeIndex = all.findIndex((btn) => btn.classList.contains("active"));
   const order = all.map((_, i) => i);
-  if (activeIndex >= visibleCount) {
-    order[visibleCount - 1] = activeIndex;
-    order[activeIndex] = visibleCount - 1;
-  }
 
   order.forEach((tabIndex, slot) => {
     const btn = all[tabIndex];
@@ -82,6 +78,7 @@ function applyReflow(all) {
   const overflowCount = all.length - visibleCount;
   moreBtn.classList.toggle("is-needed", overflowCount > 0);
   moreBtn.style.order = String(all.length);
+  moreBtn.classList.toggle("has-active", activeIndex >= visibleCount);
 
   if (isOpen && overflowCount === 0) closeFan();
 }

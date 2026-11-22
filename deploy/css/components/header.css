@@ -442,6 +442,22 @@
     background: #222;
 }
 
+.tab-more-btn.has-active {
+    position: relative;
+    color: var(--active-theme-color);
+}
+
+.tab-more-btn.has-active::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--active-theme-color);
+}
+
 .tab-more-btn .tab-more-chevron {
     display: flex;
     align-items: center;
@@ -770,8 +786,19 @@ option {
     pointer-events: none;
 }
 
-.tab-btn.is-wip:not(.active) .tab-icon-img {
-    opacity: 0.72;
+.tab-btn.is-wip:not(.active) {
+    opacity: 0.6;
+}
+
+.tab-btn.is-wip:not(.active):hover {
+    opacity: 0.85;
+}
+
+.tab-wip-lock {
+    width: 0.8em;
+    height: 0.8em;
+    margin-right: 2px;
+    vertical-align: -1px;
 }
 
 @media (max-width: 768px) {
