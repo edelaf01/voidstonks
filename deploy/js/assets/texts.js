@@ -509,6 +509,9 @@ export const TEXTS = {
     msgNoBountiesTitle: "Sin misiones óptimas activas.",
     msgNoBountiesDesc:
       "No hay Exterminios T4/T5 ni cazas de Ángel disponibles en este ciclo.",
+    msgNoBountiesEmpty: "No se encontraron datos.",
+    msgBountiesError: "No se pudieron cargar los contratos.",
+    btnRetry: "Reintentar",
 
     fastFarmGuide:
       "Solo muestra contratos T4/T5 con objetivos rápidos (Exterminio, Ángel, <6min).",
@@ -626,6 +629,10 @@ export const TEXTS = {
       loading: "Calculando rotación...",
       emptyTitle: "No se pudo cargar la rotación de armas.",
       emptyDesc: "Vuelve a entrar en unos minutos.",
+      errorTitle: "No se pudo cargar la rotación de armas.",
+      retry: "Reintentar",
+      staleHours: "Datos de hace {n} h",
+      staleMinutes: "Datos de hace {n} min",
       batch: "LOTE",
       nextBatch: "Después:",
       nextBonuses: "Después: nuevos bonus",
@@ -1035,7 +1042,9 @@ export const TEXTS = {
       bestPositives: "MEJORES POSITIVOS",
       worstPositives: "PEORES POSITIVOS",
       bestNegatives: "MEJORES NEGATIVOS (INOFENSIVOS)",
-      worstNegatives: "PEORES NEGATIVOS (CRÍTICOS)"
+      worstNegatives: "PEORES NEGATIVOS (CRÍTICOS)",
+      loadError: "No se pudieron cargar las tendencias.",
+      retry: "Reintentar"
     },
     arbitrage: {
       title: "Arbitraje (Flips)",
@@ -1069,6 +1078,8 @@ export const TEXTS = {
       loading: "Cargando datos de arcanos…",
       error: "Error al cargar los datos de Vosfor.",
       loadingPrices: "Cargando precios",
+      noMarketPrice: "Sin precio de mercado",
+      retry: "Reintentar",
       explain: "Cada arcano muestra su precio de venta real y el Vosfor que da al disolverlo. El veredicto compara vender en rango 0 (R0) o rango 5 (R5) con disolver en Loid al cambio de la mejor colección.",
       bestPackTitle: "Mejor colección para gastar Vosfor",
       bestPackHint: "Con los precios actuales, aquí rinde más cada Vosfor gastado en Loid.",
@@ -1611,6 +1622,9 @@ export const TEXTS = {
     msgNoBountiesTitle: "No optimal missions active.",
     msgNoBountiesDesc:
       "No T4/T5 Exterminates or Angel hunts available in this cycle.",
+    msgNoBountiesEmpty: "No data found.",
+    msgBountiesError: "Could not load bounties.",
+    btnRetry: "Retry",
     manualAdd: "Add relic to Inventory",
     addGuide:
       "Two ways to add relics: by hand (+ button) or with the scanner (camera). Images are processed only on your device.",
@@ -1724,6 +1738,10 @@ export const TEXTS = {
       loading: "Computing rotation...",
       emptyTitle: "Could not load the weapon rotation.",
       emptyDesc: "Come back in a few minutes.",
+      errorTitle: "Could not load the weapon rotation.",
+      retry: "Retry",
+      staleHours: "Data from {n} h ago",
+      staleMinutes: "Data from {n} min ago",
       batch: "BATCH",
       nextBatch: "Next:",
       nextBonuses: "Next: new bonuses",
@@ -2219,7 +2237,9 @@ export const TEXTS = {
       bestPositives: "BEST POSITIVES",
       worstPositives: "WORST POSITIVES",
       bestNegatives: "BEST NEGATIVES (HARMLESS)",
-      worstNegatives: "WORST NEGATIVES (CRITICAL)"
+      worstNegatives: "WORST NEGATIVES (CRITICAL)",
+      loadError: "Could not load market trends.",
+      retry: "Retry"
     },
     arbitrage: {
       title: "Arbitrage (Flips)",
@@ -2253,6 +2273,8 @@ export const TEXTS = {
       loading: "Loading arcane data…",
       error: "Failed to load Vosfor data.",
       loadingPrices: "Loading prices",
+      noMarketPrice: "No market price",
+      retry: "Retry",
       explain: "Each arcane shows its real sell price and the Vosfor it yields when dissolved. The verdict compares selling the arcane (rank 0) vs dissolving it, valuing Vosfor at the best Loid collection to spend your vosfor on.",
       bestPackTitle: "Best collection to spend Vosfor on",
       bestPackHint: "At current prices, each Vosfor spent at Loid returns the most here.",

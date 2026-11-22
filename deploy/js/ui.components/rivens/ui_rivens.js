@@ -3069,6 +3069,7 @@ export async function initRivenMarketIndex() {
   }
 
   try {
+    state.rivenIndexError = false;
     const hasPremiumData = globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).some(k => globalThis.dynamicMetaStats[k]?.liquidity_score > 0);
     if (hasPremiumData) {
       state.rivenIndexData = globalThis.dynamicMetaStats;
@@ -3113,6 +3114,7 @@ export async function initRivenMarketIndex() {
             state.rivenIndexData = globalThis.dynamicMetaStats;
           } else {
             state.rivenIndexData = {};
+            state.rivenIndexError = true;
             console.warn("No riven index available; using empty fallback.");
           }
         }
@@ -3148,6 +3150,20 @@ export function filterRivenIndex(resetPagination = true) {
   }
 
   const rawData = state.rivenIndexData || {};
+  if (state.rivenIndexError && Object.keys(rawData).length === 0) {
+    const cont = document.getElementById("index-results-container");
+    if (cont) {
+      const ri = TEXTS[state.currentLang]?.rivenIndex || {};
+      cont.innerHTML = `<div class="state-error"><span>⚠ ${escapeHTML(ri.loadError || "No se pudieron cargar las tendencias.")}</span><button type="button" class="state-retry">${escapeHTML(ri.retry || "Reintentar")}</button></div>`;
+      cont.classList.remove("hidden");
+      cont.querySelector(".state-retry")?.addEventListener("click", () => {
+        state.rivenIndexError = false;
+        state.rivenIndexData = null;
+        initRivenMarketIndex();
+      });
+    }
+    return;
+  }
   const data = {};
   if (state.allRivenNames && state.allRivenNames.length > 0) {
     const porMinusculas = new Map(Object.keys(rawData).map(k => [k.toLowerCase(), k]));

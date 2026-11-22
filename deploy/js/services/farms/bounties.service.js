@@ -156,7 +156,7 @@ export async function fetchActiveBounties(force = false) {
         if (!force && cached?.expiryTime > serverNow()) return cached.data;
 
         const res = await getActiveBounties(force);
-        if (!res.ok) return [];
+        if (!res.ok) throw new Error(`bounties ${res.status}`);
 
         const { ws = [], tt = [], oracle = {} } = await res.json();
         const now = serverNow();
@@ -242,6 +242,8 @@ export async function fetchActiveBounties(force = false) {
         return allMissions;
     } catch (e) {
         console.error("Bounties error:", e);
-        return [];
+        const stale = await dbHelper.get(WORKER_URL_KEY).catch(() => null);
+        if (Array.isArray(stale?.data) && stale.data.length > 0) return stale.data;
+        throw e;
     }
 }

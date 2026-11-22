@@ -23,6 +23,8 @@ import {
     liquidityIndex,
     othersPack,
     ARC_STATS,
+    FAILED_STATS,
+    retryArcaneStats,
     pixRank,
     HEX_ARCANES,
     realizableR0,
@@ -1049,9 +1051,10 @@ function updateSellSimDOM() {
     });
 
     const es = state.currentLang === "es";
+    const isFailed = m && !m.st && FAILED_STATS.has(sellArcSlug);
     const signature = m && m.st
         ? [sellArcSlug, sellRank, sellQty, sellRatePackId, m.sim.verdict, m.bestRate ? fmtRate(m.bestRate.rate) : "-", m.unitPrice > 0 ? 1 : 0, state.currentLang].join("|")
-        : m ? "loading" : "empty";
+        : m ? (isFailed ? `failed|${sellArcSlug}|${state.currentLang}` : `loading|${state.currentLang}`) : "empty";
 
     if (signature !== lastSellSignature || !box.firstElementChild) {
         lastSellSignature = signature;
@@ -1061,6 +1064,11 @@ function updateSellSimDOM() {
             return;
         }
         if (!m.st) {
+            if (isFailed) {
+                box.innerHTML = `<div class="state-error"><span>${escapeHTML(t.noMarketPrice || "Sin precio de mercado")}</span><button type="button" class="state-retry">${escapeHTML(t.retry || "Reintentar")}</button></div>`;
+                box.querySelector(".state-retry")?.addEventListener("click", () => retryArcaneStats(sellArcSlug));
+                return;
+            }
             box.innerHTML = `<div style="font-size:0.82rem;color:#888;padding:8px 0;">${escapeHTML(t.loadingPrices || "Cargando precios")}…</div>`;
             return;
         }
