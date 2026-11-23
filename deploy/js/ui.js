@@ -676,9 +676,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  contentArea.addEventListener("scroll", checkFooterVisibility);
+  const root = document.documentElement;
+  const header = document.querySelector(".site-header");
+  let pending = false;
 
-  checkFooterVisibility();
+  function refresh() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      const h = footerRelic.offsetHeight;
+      if (h > 0) root.style.setProperty("--footer-relic-h", h + "px");
+      if (header && header.offsetHeight > 0) {
+        root.style.setProperty("--mobile-header-h", header.offsetHeight + "px");
+      }
+      checkFooterVisibility();
+    });
+  }
+
+  contentArea.addEventListener("scroll", checkFooterVisibility, { passive: true });
+  window.addEventListener("resize", refresh);
+
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(refresh);
+    ro.observe(contentArea);
+    ro.observe(footerRelic);
+    if (header) ro.observe(header);
+  }
+
+  new MutationObserver(refresh).observe(contentArea, { childList: true, subtree: true });
+  new MutationObserver(refresh).observe(footerRelic, { attributes: true, attributeFilter: ["style"] });
+
+  refresh();
 });
 
 export function updatePriceUI(element, price) {

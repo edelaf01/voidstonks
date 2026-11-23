@@ -3621,14 +3621,14 @@ body.theme-vosfor {
     position: static !important;
     width: auto !important;
     margin: 24px -10px 0 !important;
-    padding: 18px 16px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 18px 16px calc(150px + env(safe-area-inset-bottom, 0px)) !important;
     font-size: 0.8em !important;
     background: rgba(0, 0, 0, 0.25) !important;
     border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
 
   .site-footer.in-scroll .footer-row {
-    gap: 4px 10px !important;
+    gap: 8px 14px !important;
     margin-top: 10px !important;
     line-height: 1.9 !important;
   }
@@ -3636,7 +3636,7 @@ body.theme-vosfor {
   .site-footer.in-scroll .footer-link,
   .site-footer.in-scroll .contact-link,
   .site-footer.in-scroll .footer-link-btn {
-    padding: 4px 6px !important;
+    padding: 8px 10px !important;
   }
 
   .site-footer.in-scroll .footer-disclaimer {
@@ -3693,10 +3693,16 @@ body.theme-vosfor {
     backdrop-filter: none !important;
     opacity: 1 !important;
     visibility: visible !important;
-    height: calc(100% - 60px) !important;
-    max-width: 350px !important;
+    top: var(--mobile-header-h, 60px) !important;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    height: auto !important;
+    max-height: none !important;
+    max-width: min(350px, 100vw) !important;
+    box-sizing: border-box !important;
+    background: #0f1419 !important;
     z-index: 9000 !important;
-    overflow: visible !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
     display: flex !important;
     flex-direction: column !important;
     transition:
@@ -4005,7 +4011,7 @@ body.theme-vosfor {
     background: #0f1115 !important;
     border-top: 2px solid var(--active-theme-color) !important;
     box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.8) !important;
-    padding: 15px 20px !important;
+    padding: 10px 14px !important;
     transform: translateY(100%) !important;
     opacity: 0 !important;
     pointer-events: none !important;
@@ -4022,21 +4028,9 @@ body.theme-vosfor {
     pointer-events: auto !important;
   }
 
-  #footer-relic::before {
-    content: "▼ SCROLL TO SEE/COPY MESSAGE ▼";
-    position: absolute;
-    top: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.6em;
-    color: var(--active-theme-color);
-    font-weight: 800;
-    opacity: 1;
-    transition: opacity 0.2s;
-  }
-
-  #footer-relic.footer-visible::before {
-    opacity: 0;
+  #footer-relic .message-display {
+    font-size: 1.1em !important;
+    margin-bottom: 6px !important;
   }
 
   .mobile-scan-fab {
@@ -4056,7 +4050,7 @@ body.theme-vosfor {
   }
 
   body:has(#footer-relic.footer-visible) .mobile-scan-fab {
-    bottom: 220px !important;
+    bottom: calc(64px + var(--footer-relic-h, 140px) + 12px + env(safe-area-inset-bottom, 0px)) !important;
     transition: bottom 0.3s ease;
   }
 
@@ -4080,7 +4074,7 @@ body.theme-vosfor {
   }
 
   body:has(#footer-relic.footer-visible) .wf-toast-container {
-    bottom: 220px !important;
+    bottom: calc(64px + var(--footer-relic-h, 140px) + 12px + env(safe-area-inset-bottom, 0px)) !important;
     transition: bottom 0.3s ease;
   }
 
@@ -4097,7 +4091,54 @@ body.theme-vosfor {
     display: flex !important;
     flex-direction: column !important;
     height: 100vh !important;
+    height: 100dvh !important;
     overflow: hidden !important;
+  }
+
+  body:has(#footer-relic.footer-lfg) .content-area,
+  body:has(#footer-relic.footer-relic-mode) .content-area {
+    padding-bottom: calc(var(--footer-relic-h, 140px) + 12px) !important;
+  }
+
+  .mobile-scan-fab {
+    z-index: 8000 !important;
+  }
+}
+
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .riven-slider,
+  .vosfor-slider {
+    height: 10px !important;
+  }
+
+  .riven-slider::-webkit-slider-thumb,
+  .vosfor-slider::-webkit-slider-thumb {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .riven-slider::-moz-range-thumb,
+  .vosfor-slider::-moz-range-thumb {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .inv-view-btn,
+  .inv-action-btn,
+  .inv-tier-btn,
+  .set-rec-filter-input,
+  .alarm-select,
+  .farm-seg-btn,
+  #indexSearchInput,
+  .farms-sub-btn,
+  #langTrigger {
+    min-height: 40px !important;
   }
 }
 
