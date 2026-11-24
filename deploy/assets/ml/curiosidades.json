@@ -1,26 +1,116 @@
 {
- "generado": "2026-11-23",
- "serie_hasta": "2026-11-23",
+ "generado": "2026-11-24",
+ "serie_hasta": "2026-11-24",
  "globales": [
   {
    "tipo": "global_weekly",
-   "fecha": "2026-11-17",
-   "suben": 180,
-   "bajan": 211,
-   "desde": "2026-11-16"
+   "fecha": "2026-11-24",
+   "suben": 173,
+   "bajan": 220
   },
   {
    "tipo": "global_prima",
-   "valor": 2.1,
-   "armas": 63
+   "valor": 1.9,
+   "armas": 66
   },
   {
    "tipo": "global_cara",
-   "arma": "arum spinosa",
-   "valor": 2514
+   "arma": "tiberon",
+   "valor": 2014
   }
  ],
  "eventos": [
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "hate",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "volatil",
+   "pct": 378,
+   "de": 0.45,
+   "a": 2.1,
+   "pop_de": 9.4,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "batoten",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "subida_venta",
+   "pct": 145,
+   "de": 60,
+   "a": 147,
+   "pop_de": 3.5,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "arbucep",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "bajada_venta",
+   "pct": -33,
+   "de": 70,
+   "a": 47,
+   "pop_de": 3.8,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "war",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "subida_venta",
+   "pct": 95,
+   "de": 40,
+   "a": 78,
+   "pop_de": 12.1,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "glaxion",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "bajada_venta",
+   "pct": -29,
+   "de": 78,
+   "a": 55,
+   "pop_de": 13.6,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "mire",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "subida_venta",
+   "pct": 28,
+   "de": 40,
+   "a": 51,
+   "pop_de": 8.9,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-24",
+   "dias_tras_weekly": 0,
+   "arma": "larkspur",
+   "fecha": "2026-11-24",
+   "desde": "2026-11-17",
+   "tipo": "bajada_venta",
+   "pct": -29,
+   "de": 127,
+   "a": 90,
+   "pop_de": 4.9,
+   "fuente": "de"
+  },
   {
    "weekly": "2026-11-17",
    "dias_tras_weekly": 0,
@@ -128,14 +218,14 @@
   {
    "weekly": "2026-11-17",
    "dias_tras_weekly": 0,
-   "arma": "batoten",
+   "arma": "sobek",
    "fecha": "2026-11-17",
    "desde": "2026-11-10",
    "tipo": "bajada_venta",
    "pct": -28,
-   "de": 83,
-   "a": 60,
-   "pop_de": 3.9,
+   "de": 60,
+   "a": 43,
+   "pop_de": 9.4,
    "fuente": "de"
   },
   {
@@ -149,19 +239,6 @@
    "de": 45,
    "a": 57,
    "pop_de": 15.6,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-11-17",
-   "dias_tras_weekly": 0,
-   "arma": "sobek",
-   "fecha": "2026-11-17",
-   "desde": "2026-11-10",
-   "tipo": "bajada_venta",
-   "pct": -28,
-   "de": 60,
-   "a": 43,
-   "pop_de": 9.4,
    "fuente": "de"
   },
   {
@@ -422,19 +499,6 @@
    "de": 68,
    "a": 45,
    "pop_de": 13.3,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-11-03",
-   "dias_tras_weekly": 0,
-   "arma": "war",
-   "fecha": "2026-11-03",
-   "desde": "2026-10-27",
-   "tipo": "bajada_venta",
-   "pct": -33,
-   "de": 64,
-   "a": 43,
-   "pop_de": 12.1,
    "fuente": "de"
   },
   {
