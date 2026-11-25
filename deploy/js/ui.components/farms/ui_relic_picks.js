@@ -70,7 +70,7 @@ export function pickHtml(p, t) {
       <div class="fr-pick-head">
         <button type="button" class="fr-go ${estado}"
                 data-action="select-relic-from-inv" data-relic="${escapeHTML(`${p.relic} Relic`)}"
-                title="${escapeHTML(p.relic)}">${escapeHTML(p.relic)}</button>
+                data-tooltip-relic="${escapeHTML(p.relic)}"><span class="relic-era-icon ${escapeHTML(p.relic.split(" ")[0].toLowerCase())}"></span>${escapeHTML(p.relic)}</button>
         <span class="fr-dim">${escapeHTML((t.picksCopies || "×{n}").replace("{n}", String(p.owned)))}</span>
         ${cierra}
         <span class="fr-need" data-tooltip="${escapeHTML(t.picksUsefulTitle || "")}">${escapeHTML(utiles)}</span>
