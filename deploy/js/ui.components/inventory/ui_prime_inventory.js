@@ -227,7 +227,7 @@ export function toggleInvSet(safeSetId) {
 }
 
 export function openSetDetail(setName) {
-  globalThis.switchTab("set");
+  globalThis.navegarA({ tab: "set", ctx: setName });
   const input = document.getElementById("setItemInput");
   if (input) {
     input.value = setName;

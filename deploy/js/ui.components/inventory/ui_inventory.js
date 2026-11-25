@@ -2,7 +2,7 @@ import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml, qtyToast } from "../ui_components.js";
 
-import { manualRelicUpdate, renderRelicInvCounter } from "./ui_relics.js";
+import { renderRelicInvCounter } from "./ui_relics.js";
 import { trackBestSetForRelic } from "./ui_set_tracker.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
@@ -273,11 +273,10 @@ export function selectRelicFromInv(name) {
   const input = document.getElementById("relicInput");
   if (input) input.value = name;
 
-  globalThis.switchTab("relic");
+  globalThis.navegarA({ tab: "relic", ctx: name });
   // close directly, not toggle: relic chips also show in routes panel with inventory closed
   if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  manualRelicUpdate();
   trackBestSetForRelic(name);
 }
 
@@ -502,9 +501,9 @@ export function importInventory() {
           return;
         }
 
+        showCustomConfirm(t.confirmImportAll, () => {
           const prevInv = structuredClone(state.inventory);
           const prevPrime = structuredClone(state.primeInventory);
-        showCustomConfirm(t.confirmImportAll, () => {
           state.inventory = cleanRelics;
           state.primeInventory = cleanParts;
           saveAppState();
@@ -543,9 +542,9 @@ export function importInventory() {
           return;
         }
 
+        showCustomConfirm((t.confirmImportRelics || "").replace("{n}", cleanRelics.length), () => {
           const prevInv = structuredClone(state.inventory);
           const prevPrime = structuredClone(state.primeInventory);
-        showCustomConfirm((t.confirmImportRelics || "").replace("{n}", cleanRelics.length), () => {
           state.inventory = cleanRelics;
           saveAppState();
           inventarioCambiado();

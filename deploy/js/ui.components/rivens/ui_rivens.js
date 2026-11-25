@@ -1,6 +1,7 @@
 import { state } from "../../state.js";
 import { cargaScript } from "../../utils/carga_script.js";
 import { seEstaMirando } from "../../utils/shell.js";
+import { syncCtxHash } from "../../utils/deeplinks.js";
 import { renderIndexFilters, indexCountHtml, indexEmptyHtml } from "./ui_riven_index_filters.js";
 import { META_KEYS, EXCLUDED_COMPONENTS, isBaseWeapon, applyIndexFilters } from "../../utils/rivens/riven_index_filter.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
@@ -1813,6 +1814,8 @@ export function handleRivenInput() {
     const val = input.value.toUpperCase().trim();
     if (!val) {
       dropdown.classList.add("hidden");
+      armaElegida = null;
+      syncCtxHash("riven", "");
       renderRivenPreview(null);
       return;
     }
@@ -1865,7 +1868,7 @@ export function handleRivenInput() {
 
 export function selectRivenWeapon(name) {
   const input = document.getElementById("rivenWeaponInput");
-  if (!input) return;
+  if (!input || !name) return;
   clearTimeout(rivenDebounceTimer);
   document.getElementById("rivenDropdown")?.classList.add("hidden");
 
@@ -1882,6 +1885,7 @@ export function selectRivenWeapon(name) {
   }
 
   if (armaElegida === name && input.value === name) {
+    syncCtxHash("riven", name);
     const carousel = document.getElementById("riven-variants-carousel");
     if (carousel) {
       const cards = carousel.querySelectorAll(".variant-card");
@@ -1896,6 +1900,7 @@ export function selectRivenWeapon(name) {
 
   armaElegida = name;
   input.value = name;
+  syncCtxHash("riven", name);
 
   const clearBtn = document.getElementById("btn-clear-riven-search");
   if (clearBtn) clearBtn.style.display = "block";
