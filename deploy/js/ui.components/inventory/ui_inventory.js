@@ -44,6 +44,7 @@ export function clearInventory() {
     : t.purgeConfirmRelics || "OROKIN PURGE: Delete ALL saved Relics?";
 
   showCustomConfirm(confirmMsg, () => {
+    const prev = structuredClone(isParts ? state.primeInventory : state.inventory);
     if (isParts) {
       state.primeInventory = {};
       inventarioCambiado();
@@ -52,7 +53,19 @@ export function clearInventory() {
       inventarioCambiado();
     }
     saveAppState();
-    showToast(t.inventory?.toastCleared || "Inventory cleared");
+    const u = TEXTS[state.currentLang].undo;
+    showToast(u.inventoryCleared, {
+      tag: "undo-clear-inventory",
+      action: {
+        label: u.label,
+        onClick: () => {
+          if (isParts) state.primeInventory = prev;
+          else state.inventory = prev;
+          saveAppState();
+          inventarioCambiado();
+        },
+      },
+    });
   });
 }
 
@@ -489,12 +502,26 @@ export function importInventory() {
           return;
         }
 
+          const prevInv = structuredClone(state.inventory);
+          const prevPrime = structuredClone(state.primeInventory);
         showCustomConfirm(t.confirmImportAll, () => {
           state.inventory = cleanRelics;
           state.primeInventory = cleanParts;
           saveAppState();
           inventarioCambiado();
-          showToast(t.toastImportedAll || "Full inventory updated");
+          const u = TEXTS[state.currentLang].undo;
+          showToast(u.inventoryImported, {
+            tag: "undo-import-inventory",
+            action: {
+              label: u.label,
+              onClick: () => {
+                state.inventory = prevInv;
+                state.primeInventory = prevPrime;
+                saveAppState();
+                inventarioCambiado();
+              },
+            },
+          });
           notifyDiscarded();
         });
       } else if (Array.isArray(data)) {
@@ -516,11 +543,25 @@ export function importInventory() {
           return;
         }
 
+          const prevInv = structuredClone(state.inventory);
+          const prevPrime = structuredClone(state.primeInventory);
         showCustomConfirm((t.confirmImportRelics || "").replace("{n}", cleanRelics.length), () => {
           state.inventory = cleanRelics;
           saveAppState();
           inventarioCambiado();
-          showToast(t.toastImportedRelics || "Relic inventory updated");
+          const u = TEXTS[state.currentLang].undo;
+          showToast(u.inventoryImported, {
+            tag: "undo-import-inventory",
+            action: {
+              label: u.label,
+              onClick: () => {
+                state.inventory = prevInv;
+                state.primeInventory = prevPrime;
+                saveAppState();
+                inventarioCambiado();
+              },
+            },
+          });
           notifyDiscarded();
         });
       } else {

@@ -46,12 +46,15 @@ export function showToast(message, options = {}) {
   if (!container) return;
 
   const {
-    duration = 6000,
+    action = null,
     tag = null,
     onClose = null,
     type = "info",
     html = false
-  } = options;
+  } = options || {};
+  const actionLabel = action?.label ?? action?.text;
+  const actionClick = action?.onClick ?? action?.callback;
+  const duration = options?.duration ?? (actionLabel ? 8000 : 6000);
 
   if (tag && activeToasts.has(tag)) {
     const old = activeToasts.get(tag);
@@ -69,14 +72,38 @@ export function showToast(message, options = {}) {
     <span class="toast-close">×</span>
   `;
 
+  let closed = false;
+  let timer = null;
   const removeToast = () => {
+    if (closed) return;
+    closed = true;
+    if (timer) clearTimeout(timer);
     toast.classList.add("fade-out");
     setTimeout(() => {
       toast.remove();
-      if (tag) activeToasts.delete(tag);
+      if (tag && activeToasts.get(tag) === toast) activeToasts.delete(tag);
       if (onClose) onClose();
     }, 400);
   };
+
+  if (action && actionLabel) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = actionLabel;
+    let acted = false;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      if (acted || closed) return;
+      acted = true;
+      try {
+        actionClick?.();
+      } finally {
+        removeToast();
+      }
+    };
+    toast.appendChild(btn);
+  }
 
   toast.querySelector(".toast-close").onclick = (e) => {
     e.stopPropagation();
@@ -84,7 +111,7 @@ export function showToast(message, options = {}) {
   };
 
   if (duration > 0) {
-    setTimeout(removeToast, duration);
+    timer = setTimeout(removeToast, duration);
   }
 
   container.appendChild(toast);

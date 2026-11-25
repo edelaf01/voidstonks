@@ -588,18 +588,19 @@ function gastaReliquiaAbierta(nombre, delLog = false) {
 
 function avisaConDeshacer(texto, tag, deshacer) {
   const t = TEXTS[state.currentLang].scanner;
-  const toast = showToast(texto, { type: "success", tag });
-  if (!toast) return;
-  const undo = document.createElement("button");
-  undo.className = "toast-action";
-  undo.textContent = t.mcUndo;
-  undo.onclick = () => {
-    deshacer();
-    saveAppState();
-    globalThis.inventarioCambiado?.();
-    showToast(t.mcUndone, { tag });
-  };
-  toast.appendChild(undo);
+  showToast(texto, {
+    type: "success",
+    tag,
+    action: {
+      label: t.mcUndo,
+      onClick: () => {
+        deshacer();
+        saveAppState();
+        globalThis.inventarioCambiado?.();
+        showToast(t.mcUndone, { tag });
+      },
+    },
+  });
 }
 
 exposeGlobals({ commitMissionCompleteRewards, gastaReliquiaAbierta, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");

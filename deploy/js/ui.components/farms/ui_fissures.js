@@ -29,6 +29,7 @@ import {
   saveAlarmPrefs,
   addAlarmRule,
   removeAlarmRule,
+  restoreAlarmRule,
   ARBY_TIER_ORDER,
 } from "../../services/farms/alerts.service.js";
 import { escapeHTML, showToast } from "../ui_components.js";
@@ -429,8 +430,48 @@ function buildFissurePanelShell(missionDiv) {
       const delBtn = e.target.closest(".alarm-rule-del");
       if (delBtn && delBtn.closest("#fissure-alarm-rules")) {
         const id = delBtn.closest(".alarm-rule")?.dataset.ruleId;
-        if (id) removeAlarmRule(id);
+        const removed = id ? removeAlarmRule(id) : null;
         if (rulesBox) rulesBox.innerHTML = renderFissureAlarmRules(tt);
+        if (removed) {
+          const u = tt.undo;
+          showToast(u.alarmRemoved, {
+            tag: "undo-alarm-rule",
+            action: {
+              label: u.label,
+              onClick: () => {
+                restoreAlarmRule(removed.rule, removed.index);
+                const box = document.getElementById("fissure-alarm-rules");
+                if (box) box.innerHTML = renderFissureAlarmRules(TEXTS[state.currentLang]);
+              },
+            },
+          });
+        }
+        return;
+      }
+
+      if (e.target.id === "fissure-filters-reset") {
+        const prev = structuredClone(getFissurePrefs());
+        saveFissurePrefs({
+          missionTypes: [...DEFAULT_MISSION_TYPES],
+          includeOmnia: true,
+          includeRailjack: false,
+          railjackTypes: [...RAILJACK_MISSION_TYPES],
+        });
+        filtersPanel.innerHTML = renderFissureFiltersPanel(getFissurePrefs());
+        initFissurePanel();
+        const u = tt.undo;
+        showToast(u.fissureFiltersReset, {
+          tag: "undo-fissure-filters",
+          action: {
+            label: u.label,
+            onClick: () => {
+              saveFissurePrefs(prev);
+              const fPanel = document.getElementById("fissure-filters-panel");
+              if (fPanel) fPanel.innerHTML = renderFissureFiltersPanel(getFissurePrefs());
+              initFissurePanel();
+            },
+          },
+        });
       }
     });
     filtersPanel.addEventListener("change", (e) => {
@@ -442,20 +483,6 @@ function buildFissurePanelShell(missionDiv) {
       readAndSaveFissurePrefsFromPanel(filtersPanel);
       renderMissionList();
     });
-
-    const resetBtn = document.getElementById("fissure-filters-reset");
-    if (resetBtn) {
-      resetBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        saveFissurePrefs({
-          missionTypes: [...DEFAULT_MISSION_TYPES],
-          includeOmnia: true,
-          includeRailjack: false,
-          railjackTypes: [...RAILJACK_MISSION_TYPES],
-        });
-        initFissurePanel();
-      });
-    }
   }
 
   if (!globalThis._fissureRefreshInterval) {

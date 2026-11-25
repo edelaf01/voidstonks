@@ -441,10 +441,23 @@ const loadTradePreset = function (index) {
 const deleteTradePreset = function (index) {
   const t = TEXTS[state.currentLang].tradePresets || {};
   showCustomConfirm(t.deleteConfirm || "Delete this preset?", () => {
-    state.tradePresets.splice(index, 1);
+    const [item] = state.tradePresets.splice(index, 1);
     saveAppState();
     renderTradePresets();
   });
+    if (!item) return;
+    const u = TEXTS[state.currentLang].undo;
+    showToast(u.tradePresetDeleted, {
+      tag: "undo-trade-preset",
+      action: {
+        label: u.label,
+        onClick: () => {
+          state.tradePresets.splice(index, 0, item);
+          saveAppState();
+          renderTradePresets();
+        },
+      },
+    });
 };
 
 export function renderLFGPresets() {
@@ -576,9 +589,22 @@ const loadLFGPreset = function (index) {
 
 const deleteLFGPreset = function (index) {
   showCustomConfirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm, () => {
-    state.lfgPresets.splice(index, 1);
+    const [item] = state.lfgPresets.splice(index, 1);
     saveAppState();
     renderLFGPresets();
+    if (!item) return;
+    const u = TEXTS[state.currentLang].undo;
+    showToast(u.lfgPresetDeleted, {
+      tag: "undo-lfg-preset",
+      action: {
+        label: u.label,
+        onClick: () => {
+          state.lfgPresets.splice(index, 0, item);
+          saveAppState();
+          renderLFGPresets();
+        },
+      },
+    });
   });
 };
 
