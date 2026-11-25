@@ -32,6 +32,7 @@ import { renderEmptySetsShowcase } from "./ui_sets_showcase.js";
 import { renderSetsBridge, bridgeTargetFrom } from "./ui_sets_bridge.js";
 import { renderSetTracker, updateMacroTracker } from "./ui_set_tracker.js";
 import { setHistoryBlock, marcarVarzia } from "./ui_set_history.js";
+import { syncCtxHash } from "../../utils/deeplinks.js";
 let debounceTimer;
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 globalThis.DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
@@ -150,6 +151,7 @@ export function searchSet() {
   container.innerHTML = "";
 
   if (query.length < 2) {
+    syncCtxHash("set", "");
     renderSetsBridge(container);
     renderEmptySetsShowcase(container, { append: true });
     return;
@@ -176,6 +178,7 @@ export function searchSet() {
   }
 
   if (groups.size === 0 && singles.length === 0) {
+    syncCtxHash("set", "");
     const empty = document.createElement("div");
     empty.className = "set-search-empty";
     empty.textContent = t.setTab?.noResults || t.notFound;
@@ -187,6 +190,8 @@ export function searchSet() {
   const rankedSets = [...groups.entries()]
     .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
     .slice(0, MAX_SET_CARDS);
+
+  syncCtxHash("set", rankedSets.length === 1 && singles.length === 0 ? rankedSets[0][0] : query);
 
   renderSetsBridge(container);
 
@@ -413,8 +418,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
             else refSelect.value = "Intact";
           }
 
-          if (globalThis.switchTab) globalThis.switchTab("relic");
-          if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
+          globalThis.navegarA({ tab: "relic", ctx: info.relic });
         };
         grid.appendChild(btn);
       });
@@ -455,12 +459,7 @@ export function trackSetFromPart(itemName) {
 function openSetFromRelicReward(partName) {
     const setName = getSetName(partName);
     if (setName === "Otros") return;
-    globalThis.switchTab("set");
-    const input = document.getElementById("setItemInput");
-    if (input) {
-      input.value = setName;
-      searchSet();
-    }
+    globalThis.navegarA({ tab: "set", ctx: setName });
     const allParts = Object.keys(state.itemsDatabase).filter(
       (n) =>
         (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set"),

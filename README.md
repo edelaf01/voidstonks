@@ -46,7 +46,7 @@ puts it next to the one you have.
 
 ## Inventory
 
-Your prime parts and relics, with a price next to everything. You can see what the whole lot
+A side panel with your prime parts and relics, with a price next to everything. You can see what the whole lot
 is worth, which of your sets are climbing or dropping, and for each relic how many runs it
 takes to finish a set and what it earns you per run.
 
@@ -62,8 +62,16 @@ takes to finish a set and what it earns you per run.
 Look up a relic, choose the refinement and how many of you are going, and you'll see what's
 inside, what each part goes for and whether you're better off opening it or selling it intact.
 Drop a part on the set tracker and it tells you how many runs it usually takes to get it.
+Each set has a price history chart, and a "sell now" list groups the parts worth selling by set.
 
 ![Relic lookup and set progress](.github/readme/setsrelics.gif)
+
+<table>
+  <tr>
+    <td><img src=".github/readme/sethistory.webp" width="380" alt="Saryn Prime set price history"></td>
+    <td><img src=".github/readme/sellnow.webp" width="380" alt="Parts worth selling now, grouped by set"></td>
+  </tr>
+</table>
 
 ## Rivens
 
@@ -71,6 +79,10 @@ Pick a weapon to see what its rivens go for (unrolled, rolled and listed on warf
 and which stats people want on it. Type in your riven, or let the scanner read it, and you get
 a price range and a grade for each stat. It'll even tell you whether locking a stat is worth
 the kuva.
+
+There's also a daily page of market curiosities and the stats that are in demand right now.
+
+![Riven market curiosities of the week](.github/readme/riven-curiosities.gif)
 
 <table>
   <tr>
@@ -100,10 +112,15 @@ method, with the numbers behind it, is on the site:
 ## Farms
 
 The fissures open right now, the bounties worth doing, the arbitration schedule and the Coda
-and Tenet weapon rotation. Set an alarm for whatever you're chasing and it'll let you know when
-it's up.
+and Tenet weapon rotation. A Traders view covers Baro, prime events and unvaults. Set an alarm
+for whatever you're chasing and it'll let you know when it's up.
 
-![Weapon rotation, alarms and bounties](.github/readme/farmstab-alarms.webp)
+<table>
+  <tr>
+    <td><img src=".github/readme/farmstab-alarms.webp" width="380" alt="Weapon rotation, alarms and bounties"></td>
+    <td><img src=".github/readme/farms-traders.webp" width="380" alt="Varzia and Baro Ki'Teer in the Traders view"></td>
+  </tr>
+</table>
 
 ## Vosfor
 
@@ -125,11 +142,20 @@ what to bring to Baro and what to put on the market.
 Recruitment messages for the runs that need them. Write one on your phone and pick it up on
 your PC with a four-digit code.
 
+![Writing a recruitment message for an Eidolon hunt](.github/readme/lfg.webp)
+
+## My orders
+
+Your warframe.market orders, managed from the app. This only works in the desktop version,
+where you log in locally. On the website the tab shows as under construction.
+
 ## Your data
 
-There's no Warframe login, no game files and nothing hooked into the game. Your inventory and
-settings stay in your browser, there's no account and nothing is tracked. Prices come from
-warframe.market through a cached server, so the app doesn't hammer their API.
+On the website there's no login, no game files and nothing hooked into the game. Your inventory
+and settings stay in your browser, there's no account and nothing is tracked. Prices are
+collected a few times a day by scheduled jobs and served from a cache, so the app never hits
+warframe.market from your browser. The desktop version can log in to warframe.market for your
+orders, and that login stays on your machine.
 
 ## Where it runs
 
@@ -146,15 +172,16 @@ extension that lets the scanner copy results to your clipboard while the game ha
 | `desktop/` | The desktop build. |
 | `extension/` | The clipboard extension. |
 | `tests/` | Tests, run on every push. |
-| `scripts/`, `scripts-actu/` | The jobs that keep game data, market stats and the riven model fresh. |
-| `.github/` | Workflows and the pictures in this README. |
+| `scripts/`, `scripts-actu/` | The jobs that keep game data, prices, set history and market stats fresh. |
+| `.github/` | Workflows (prices, content, set history, curiosities, riven model retraining, tests, deploy, desktop build) and the pictures in this README. |
 
 To run it locally:
 
 ```bash
-npm install
-npm run dev:site    # serves deploy/ at http://127.0.0.1:8080
-npm test
+pnpm install
+pnpm dev:site    # serves deploy/ at http://127.0.0.1:8080
+pnpm test
+pnpm lint
 ```
 
 ## Feedback

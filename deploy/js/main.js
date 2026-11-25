@@ -50,6 +50,10 @@ import "./ui.components/market/ui_orders.js?v=1.5";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
 import { esEscritorio } from "./utils/shell.js";
+import { initSwipeNav } from "./utils/swipe_nav.js";
+import { initPalette } from "./ui.components/ui_palette.js";
+import { initTutorial } from "./ui.components/ui_tutorial.js";
+import { aplicarHashInicial } from "./utils/deeplinks.js";
 
 let escanerVivo = null;
 const cargaEscaner = () => (escanerVivo ||= import("./scanner/live_scanner.js"));
@@ -88,6 +92,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (esEscritorio()) import("./ui.components/ui_desktop_shell.js").then((m) => m.initDesktopShell()).catch(console.error);
   initTabFan();
   initMobileFooter();
+  initSwipeNav();
+  initPalette();
+  initTutorial();
 
   if (state.activeTab === "lfg") initLFGPresets();
 
@@ -179,6 +186,7 @@ async function loadAsyncData() {
 
     await armasDeRiven;
     refreshActiveTab();
+    aplicarHashInicial();
     renderFarmRoutes().catch((e) => console.warn("[rutas] tras cargar datos:", e));
 
     warmupPrices().catch(console.error);

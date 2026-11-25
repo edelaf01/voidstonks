@@ -128,7 +128,8 @@
 #grading-modal,
 #update-modal,
 #calibration-modal,
-#orokin-confirm-modal {
+#orokin-confirm-modal,
+#orokin-prompt-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -147,7 +148,8 @@
 #grading-modal:not(.hidden),
 #update-modal:not(.hidden),
 #calibration-modal:not(.hidden),
-#orokin-confirm-modal:not(.hidden) {
+#orokin-confirm-modal:not(.hidden),
+#orokin-prompt-modal:not(.hidden) {
   opacity: 1;
   pointer-events: auto;
 }

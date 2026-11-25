@@ -2,7 +2,7 @@ import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml, qtyToast } from "../ui_components.js";
 
-import { manualRelicUpdate, renderRelicInvCounter } from "./ui_relics.js";
+import { renderRelicInvCounter } from "./ui_relics.js";
 import { trackBestSetForRelic } from "./ui_set_tracker.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
@@ -44,6 +44,7 @@ export function clearInventory() {
     : t.purgeConfirmRelics || "OROKIN PURGE: Delete ALL saved Relics?";
 
   showCustomConfirm(confirmMsg, () => {
+    const prev = structuredClone(isParts ? state.primeInventory : state.inventory);
     if (isParts) {
       state.primeInventory = {};
       inventarioCambiado();
@@ -52,7 +53,19 @@ export function clearInventory() {
       inventarioCambiado();
     }
     saveAppState();
-    showToast(t.inventory?.toastCleared || "Inventory cleared");
+    const u = TEXTS[state.currentLang].undo;
+    showToast(u.inventoryCleared, {
+      tag: "undo-clear-inventory",
+      action: {
+        label: u.label,
+        onClick: () => {
+          if (isParts) state.primeInventory = prev;
+          else state.inventory = prev;
+          saveAppState();
+          inventarioCambiado();
+        },
+      },
+    });
   });
 }
 
@@ -260,11 +273,10 @@ export function selectRelicFromInv(name) {
   const input = document.getElementById("relicInput");
   if (input) input.value = name;
 
-  globalThis.switchTab("relic");
+  globalThis.navegarA({ tab: "relic", ctx: name });
   // close directly, not toggle: relic chips also show in routes panel with inventory closed
   if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  manualRelicUpdate();
   trackBestSetForRelic(name);
 }
 
@@ -490,11 +502,25 @@ export function importInventory() {
         }
 
         showCustomConfirm(t.confirmImportAll, () => {
+          const prevInv = structuredClone(state.inventory);
+          const prevPrime = structuredClone(state.primeInventory);
           state.inventory = cleanRelics;
           state.primeInventory = cleanParts;
           saveAppState();
           inventarioCambiado();
-          showToast(t.toastImportedAll || "Full inventory updated");
+          const u = TEXTS[state.currentLang].undo;
+          showToast(u.inventoryImported, {
+            tag: "undo-import-inventory",
+            action: {
+              label: u.label,
+              onClick: () => {
+                state.inventory = prevInv;
+                state.primeInventory = prevPrime;
+                saveAppState();
+                inventarioCambiado();
+              },
+            },
+          });
           notifyDiscarded();
         });
       } else if (Array.isArray(data)) {
@@ -517,10 +543,24 @@ export function importInventory() {
         }
 
         showCustomConfirm((t.confirmImportRelics || "").replace("{n}", cleanRelics.length), () => {
+          const prevInv = structuredClone(state.inventory);
+          const prevPrime = structuredClone(state.primeInventory);
           state.inventory = cleanRelics;
           saveAppState();
           inventarioCambiado();
-          showToast(t.toastImportedRelics || "Relic inventory updated");
+          const u = TEXTS[state.currentLang].undo;
+          showToast(u.inventoryImported, {
+            tag: "undo-import-inventory",
+            action: {
+              label: u.label,
+              onClick: () => {
+                state.inventory = prevInv;
+                state.primeInventory = prevPrime;
+                saveAppState();
+                inventarioCambiado();
+              },
+            },
+          });
           notifyDiscarded();
         });
       } else {

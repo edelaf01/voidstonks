@@ -42,7 +42,7 @@ function partState(best) {
 function relicPickerHtml(relic, label, extraClass = "") {
     return `<button type="button" class="fr-go ${extraClass}"`
         + ` data-action="select-relic-from-inv" data-relic="${escapeHTML(`${relic} Relic`)}"`
-        + ` title="${escapeHTML(relic)}">${escapeHTML(label)}</button>`;
+        + ` data-tooltip-relic="${escapeHTML(relic)}"><span class="relic-era-icon ${escapeHTML(String(relic).split(" ")[0].toLowerCase())}"></span>${escapeHTML(label)}</button>`;
 }
 
 function runsHtml(best, t) {

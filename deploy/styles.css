@@ -1,8 +1,8 @@
 /* global icons (paths relative to the deploy root) */
 .plat-icon-inline {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   background: url('assets/relic_contents/platinum.webp') no-repeat center center;
   background-size: contain;
   vertical-align: middle;
@@ -10,12 +10,27 @@
 
 .ducat-icon-inline {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   background: url('assets/Ducats.webp') no-repeat center center;
   background-size: contain;
   vertical-align: middle;
 }
+
+.credit-icon-inline,
+.aya-icon-inline,
+.regal-aya-icon-inline {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background: no-repeat center center;
+  background-size: contain;
+  vertical-align: middle;
+}
+
+.credit-icon-inline { background-image: url('assets/relic_contents/credits.webp'); }
+.aya-icon-inline { background-image: url('assets/aya.webp'); }
+.regal-aya-icon-inline { background-image: url('assets/regal-aya.webp'); }
 
 :root {
   --wf-bg: #0f1115;
@@ -5210,6 +5225,17 @@ button[onclick*="importInventory"]:hover {
 
 .relic-era-icon.requiem {
   background-image: url('assets/relic_tiers/requiem.webp');
+}
+
+.fr-go .relic-era-icon,
+.squad-relic .relic-era-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.fr-go .relic-era-icon {
+  margin-right: 5px;
 }
 
 

@@ -26,6 +26,7 @@ function relicRow(relic, t) {
     const title = relic.assumedRefinement ? ` title="${escapeHTML(t.scannerHUD.squadAssumed)}"` : "";
     const copias = relic.copias > 1 ? `<span class="squad-relic-x">×${relic.copias}</span>` : "";
     return `<div class="squad-relic">
+      <span class="relic-era-icon ${escapeHTML(String(relic.name).split(" ")[0].toLowerCase())}"></span>
       <span class="squad-relic-name">${escapeHTML(relic.name)}</span>${copias}
       <span class="squad-relic-ref is-${escapeHTML(relic.refinement || "intact")}"${title}>${escapeHTML(ref)}${relic.assumedRefinement ? "?" : ""}</span>
       <span class="squad-relic-ev" title="${escapeHTML(t.scannerHUD.squadRelicEV)}">${relic.ev > 0 ? plat(relic.ev) : "-"}</span>

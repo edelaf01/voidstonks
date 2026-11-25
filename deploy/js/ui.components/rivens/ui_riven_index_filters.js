@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
-import { escapeHTML } from "../ui_components.js";
+import { TEXTS } from "../../config.js";
+import { escapeHTML, showToast } from "../ui_components.js";
 import { getIndexFilterPrefs, saveIndexFilterPrefs } from "../../services/rivens/riven_index.service.js";
 import {
     INDEX_FILTER_DEFAULTS, observedTypes, whyIndexEmpty,
@@ -92,9 +93,35 @@ export function renderIndexFilters(host, names, weaponMap, onChange) {
         clearTimeout(debounce);
         debounce = setTimeout(guardar, 250);
     });
+    const sincronizar = (p) => {
+        const leer = (sel) => host.querySelector(`[data-rif="${sel}"]`);
+        const selType = leer("type");
+        if (selType) selType.value = p.type || "";
+        const inpPrice = leer("maxPrice");
+        if (inpPrice) inpPrice.value = p.maxPrice || "";
+        const chkData = leer("withData");
+        if (chkData) chkData.checked = !!p.withData;
+    };
+
     host.querySelector('[data-rif="reset"]')?.addEventListener("click", () => {
+        clearTimeout(debounce);
+        const prev = structuredClone(getIndexFilterPrefs(tiposVistos));
         saveIndexFilterPrefs({ ...INDEX_FILTER_DEFAULTS });
+        sincronizar(INDEX_FILTER_DEFAULTS);
         onChange?.({ ...INDEX_FILTER_DEFAULTS });
+        const u = TEXTS[state.currentLang].undo;
+        showToast(u.rivenFiltersReset, {
+            tag: "undo-riven-filters",
+            action: {
+                label: u.label,
+                onClick: () => {
+                    clearTimeout(debounce);
+                    saveIndexFilterPrefs(prev);
+                    sincronizar(prev);
+                    onChange?.(getIndexFilterPrefs(tiposVistos));
+                },
+            },
+        });
     });
 
     return prefs;

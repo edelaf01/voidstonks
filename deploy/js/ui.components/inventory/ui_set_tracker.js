@@ -461,7 +461,7 @@ export function renderSetTracker() {
       ducatsSpan.style.alignItems = "center";
       ducatsSpan.style.justifyContent = "flex-end";
       ducatsSpan.style.flexShrink = "0";
-      ducatsSpan.innerHTML = `${dVal}&nbsp;<img src="assets/Ducats.webp" class="ducat-icon" style="width:14px; height:14px; object-fit:contain;">`;
+      ducatsSpan.innerHTML = `${dVal}&nbsp;<img src="assets/Ducats.webp" class="ducat-icon" style="width:16px; height:16px; object-fit:contain;">`;
     }
 
     const controlsDiv = document.createElement("div");

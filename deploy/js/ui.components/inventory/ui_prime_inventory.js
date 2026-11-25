@@ -6,7 +6,7 @@ import { setTrendHtml, wireSetTrend } from "./ui_set_trend.js";
 import { venderYaHtml, wireVenderYa, cicloVaultHtml, wireCicloVault } from "./ui_vender_ya.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { emptyStateHtml, showCustomConfirm } from "../ui_components.js";
+import { emptyStateHtml, showCustomConfirm, showToast } from "../ui_components.js";
 import {
   getItemIcon,
   getSetName,
@@ -136,14 +136,32 @@ export function modifyPrimePart(name, amount) {
 export function deletePrimeSet(setName) {
   const t = TEXTS[state.currentLang].inventory;
   showCustomConfirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`, () => {
+    const removed = [];
     Object.keys(state.primeInventory).forEach((name) => {
       if (getSetName(name) === setName) {
+        removed.push([name, state.primeInventory[name]]);
         delete state.primeInventory[name];
       }
     });
 
     saveAppState();
     renderPrimeInventory();
+    if (removed.length > 0) {
+      const u = TEXTS[state.currentLang].undo;
+      showToast(u.setDeleted, {
+        tag: "undo-prime-set",
+        action: {
+          label: u.label,
+          onClick: () => {
+            removed.forEach(([name, qty]) => {
+              state.primeInventory[name] = qty;
+            });
+            saveAppState();
+            renderPrimeInventory();
+          },
+        },
+      });
+    }
   });
 }
 
@@ -157,6 +175,7 @@ export function decrementPrimeSet(setName) {
 
   if (allPossibleParts.length === 0) return;
 
+  const prevParts = new Map();
   let anyRemoved = false;
   allPossibleParts.forEach(p => {
     const reqMatch = p.match(/(\d+)x$/);
@@ -168,6 +187,7 @@ export function decrementPrimeSet(setName) {
     }
 
     if (state.primeInventory[partName]) {
+      if (!prevParts.has(partName)) prevParts.set(partName, state.primeInventory[partName]);
       state.primeInventory[partName] = Math.max(0, state.primeInventory[partName] - requiredCount);
       anyRemoved = true;
       if (state.primeInventory[partName] === 0) {
@@ -179,6 +199,20 @@ export function decrementPrimeSet(setName) {
   if (anyRemoved) {
     saveAppState();
     renderPrimeInventory();
+    const u = TEXTS[state.currentLang].undo;
+    showToast(u.setDecremented, {
+      tag: "undo-prime-set",
+      action: {
+        label: u.label,
+        onClick: () => {
+          prevParts.forEach((qty, name) => {
+            state.primeInventory[name] = qty;
+          });
+          saveAppState();
+          renderPrimeInventory();
+        },
+      },
+    });
   }
 }
 
@@ -193,7 +227,7 @@ export function toggleInvSet(safeSetId) {
 }
 
 export function openSetDetail(setName) {
-  globalThis.switchTab("set");
+  globalThis.navegarA({ tab: "set", ctx: setName });
   const input = document.getElementById("setItemInput");
   if (input) {
     input.value = setName;

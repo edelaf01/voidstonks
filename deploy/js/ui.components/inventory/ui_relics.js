@@ -20,6 +20,7 @@ import { trackBestSetForRelic, renderSetTracker } from "./ui_set_tracker.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { isTouchPointer } from "../../utils/tap.js";
 import { squadTag } from "../../utils/chat_link.js";
+import { syncCtxHash } from "../../utils/deeplinks.js";
 
 let debounceTimer;
 
@@ -73,6 +74,7 @@ export function handleRelicTyping() {
     }
     container?.classList.add("hidden");
     state.selectedRelic = "";
+    syncCtxHash("relic", "");
     return;
   }
 
@@ -138,6 +140,8 @@ export function manualRelicUpdate() {
     const inputVal = relicInput.value.trim();
     if (!inputVal) {
       document.getElementById("relic-contents")?.classList.add("hidden");
+      state.selectedRelic = "";
+      syncCtxHash("relic", "");
       return;
     }
 
@@ -154,6 +158,7 @@ export function manualRelicUpdate() {
 
     if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
       container.classList.remove("hidden");
+      syncCtxHash("relic", state.selectedRelic);
       renderRelicStatusBadge(state.selectedRelic);
       renderRelicInvCounter();
       const items = [...state.relicsDatabase[state.selectedRelic]].sort(
@@ -501,8 +506,7 @@ export function renderRelicsForPartInline(partName, container) {
         state.selectedRelic = info.relic;
         const searchInput = document.getElementById("relicInput");
         if (searchInput) searchInput.value = info.relic;
-        if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
-        if (globalThis.switchTab) globalThis.switchTab("relic");
+        globalThis.navegarA({ tab: "relic", ctx: info.relic });
         trackBestSetForRelic(info.relic);
       };
       grid.appendChild(btn);

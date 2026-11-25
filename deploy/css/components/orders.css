@@ -299,8 +299,8 @@
 
 .order-price .plat-icon-inline,
 .os-val .plat-icon-inline {
-    width: 0.75em;
-    height: 0.75em;
+    width: max(16px, 0.75em);
+    height: max(16px, 0.75em);
     margin-left: 3px;
 }
 
@@ -310,8 +310,8 @@
 .market-plat .plat-icon-inline,
 .market-stat-value .plat-icon-inline,
 .order-act-plat .plat-icon-inline {
-    width: 0.85em;
-    height: 0.85em;
+    width: max(16px, 0.85em);
+    height: max(16px, 0.85em);
     margin-left: 2px;
 }
 

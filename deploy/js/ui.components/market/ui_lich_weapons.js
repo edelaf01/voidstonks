@@ -9,6 +9,7 @@ import {
   saveAlarmPrefs,
   addAlarmRule,
   removeAlarmRule,
+  restoreAlarmRule,
   notificationState,
   requestNotifyPermission,
   evaluateAlarms,
@@ -352,8 +353,21 @@ function bindAlarmPanel(container, vendors, t) {
     panel.querySelectorAll(".alarm-rule-del").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.closest(".alarm-rule")?.dataset.ruleId;
-        if (id) removeAlarmRule(id);
+        const removed = id ? removeAlarmRule(id) : null;
         refresh();
+        if (removed) {
+          const u = TEXTS[state.currentLang].undo;
+          showToast(u.alarmRemoved, {
+            tag: "undo-alarm-rule",
+            action: {
+              label: u.label,
+              onClick: () => {
+                restoreAlarmRule(removed.rule, removed.index);
+                refresh();
+              },
+            },
+          });
+        }
       });
     });
   }

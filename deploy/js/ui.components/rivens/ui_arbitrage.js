@@ -3,7 +3,7 @@ import { TEXTS } from "../../config.js";
 import { showToast, escapeHTML } from "../ui_components.js";
 import { fetchArbitrage, fetchLiveOrders } from "../../repositories/riven.repository.js";
 
-const PLAT = `<img src="assets/relic_contents/platinum.webp" style="width:11px;height:11px;vertical-align:middle;">`;
+const PLAT = `<img src="assets/relic_contents/platinum.webp" style="width:14px;height:14px;vertical-align:middle;">`;
 let lastSnapshot = null;
 
 function arbT() {

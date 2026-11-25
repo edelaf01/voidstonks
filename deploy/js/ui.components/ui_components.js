@@ -46,12 +46,15 @@ export function showToast(message, options = {}) {
   if (!container) return;
 
   const {
-    duration = 6000,
+    action = null,
     tag = null,
     onClose = null,
     type = "info",
     html = false
-  } = options;
+  } = options || {};
+  const actionLabel = action?.label ?? action?.text;
+  const actionClick = action?.onClick ?? action?.callback;
+  const duration = options?.duration ?? (actionLabel ? 8000 : 6000);
 
   if (tag && activeToasts.has(tag)) {
     const old = activeToasts.get(tag);
@@ -69,14 +72,38 @@ export function showToast(message, options = {}) {
     <span class="toast-close">×</span>
   `;
 
+  let closed = false;
+  let timer = null;
   const removeToast = () => {
+    if (closed) return;
+    closed = true;
+    if (timer) clearTimeout(timer);
     toast.classList.add("fade-out");
     setTimeout(() => {
       toast.remove();
-      if (tag) activeToasts.delete(tag);
+      if (tag && activeToasts.get(tag) === toast) activeToasts.delete(tag);
       if (onClose) onClose();
     }, 400);
   };
+
+  if (action && actionLabel) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = actionLabel;
+    let acted = false;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      if (acted || closed) return;
+      acted = true;
+      try {
+        actionClick?.();
+      } finally {
+        removeToast();
+      }
+    };
+    toast.appendChild(btn);
+  }
 
   toast.querySelector(".toast-close").onclick = (e) => {
     e.stopPropagation();
@@ -84,7 +111,7 @@ export function showToast(message, options = {}) {
   };
 
   if (duration > 0) {
-    setTimeout(removeToast, duration);
+    timer = setTimeout(removeToast, duration);
   }
 
   container.appendChild(toast);
@@ -116,6 +143,99 @@ export function showCustomConfirm(message, onConfirm) {
 
 export function closeOrokinConfirm() {
   document.getElementById("orokin-confirm-modal")?.classList.add("hidden");
+}
+
+let promptModal = null;
+let promptAccept = null;
+let promptPrevFocus = null;
+
+function onPromptKeydown(e) {
+  if (e.key !== "Escape") return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeOrokinPrompt();
+}
+
+function closeOrokinPrompt() {
+  if (!promptModal || promptModal.modal.classList.contains("hidden")) return;
+  promptModal.modal.classList.add("hidden");
+  document.removeEventListener("keydown", onPromptKeydown, true);
+  promptAccept = null;
+  const prev = promptPrevFocus;
+  promptPrevFocus = null;
+  if (prev?.isConnected) prev.focus?.();
+}
+
+function acceptOrokinPrompt() {
+  if (!promptModal) return;
+  const value = promptModal.input.value.trim();
+  if (!value) {
+    promptModal.input.focus();
+    return;
+  }
+  const cb = promptAccept;
+  closeOrokinPrompt();
+  if (typeof cb === "function") cb(value);
+}
+
+function ensureOrokinPrompt() {
+  if (promptModal && promptModal.modal.isConnected) return promptModal;
+  const modal = document.createElement("div");
+  modal.id = "orokin-prompt-modal";
+  modal.className = "hidden";
+  modal.innerHTML = `
+    <div class="modal-backdrop"></div>
+    <div class="scan-result-card simple-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="orokin-prompt-msg" style="max-width: 400px; height: auto">
+      <div style="padding: 25px 20px; text-align: center">
+        <label id="orokin-prompt-msg" for="orokin-prompt-input" style="display: block; color: #eee; font-size: 1rem; margin-bottom: 16px"></label>
+        <input id="orokin-prompt-input" type="text" class="wf-input" autocomplete="off" style="margin-bottom: 18px" />
+        <div style="display: flex; gap: 12px; justify-content: center">
+          <button id="orokin-prompt-confirm" type="button" class="action-btn confirm" style="flex: 1; font-weight: 700"></button>
+          <button id="orokin-prompt-cancel" type="button" class="action-btn" style="background: transparent; border: 1px solid rgba(255, 68, 68, 0.4); color: #ff4444; flex: 1; cursor: pointer; padding: 10px 20px; text-transform: uppercase; font-weight: 700; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"></button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const msgEl = modal.querySelector("#orokin-prompt-msg");
+  const input = modal.querySelector("#orokin-prompt-input");
+  const confirmBtn = modal.querySelector("#orokin-prompt-confirm");
+  const cancelBtn = modal.querySelector("#orokin-prompt-cancel");
+
+  modal.querySelector(".modal-backdrop").addEventListener("click", closeOrokinPrompt);
+  cancelBtn.addEventListener("click", closeOrokinPrompt);
+  confirmBtn.addEventListener("click", acceptOrokinPrompt);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      acceptOrokinPrompt();
+    }
+  });
+
+  promptModal = { modal, msgEl, input, confirmBtn, cancelBtn };
+  return promptModal;
+}
+
+export function showCustomPrompt(message, onAccept, defaultValue = "") {
+  const ui = ensureOrokinPrompt();
+  const t = TEXTS[state.currentLang] || {};
+
+  if (!ui.modal.classList.contains("hidden")) {
+    document.removeEventListener("keydown", onPromptKeydown, true);
+  } else {
+    promptPrevFocus = document.activeElement;
+  }
+
+  promptAccept = onAccept;
+  ui.msgEl.textContent = message ?? "";
+  ui.input.value = defaultValue == null ? "" : String(defaultValue);
+  ui.confirmBtn.textContent = t.btnConfirm || "CONFIRM";
+  ui.cancelBtn.textContent = t.btnCancel || "CANCEL";
+
+  ui.modal.classList.remove("hidden");
+  document.addEventListener("keydown", onPromptKeydown, true);
+  ui.input.focus();
+  if (ui.input.value) ui.input.select();
 }
 
 exposeGlobals({ showToast, qtyToast, closeOrokinConfirm }, "ui.components/ui_components.js");

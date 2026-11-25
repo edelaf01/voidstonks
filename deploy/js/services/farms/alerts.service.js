@@ -114,8 +114,21 @@ export function addAlarmRule(rule) {
 
 export function removeAlarmRule(id) {
   const prefs = getAlarmPrefs();
-  prefs.rules = prefs.rules.filter((r) => r.id !== id);
+  const index = prefs.rules.findIndex((r) => r.id === id);
+  if (index === -1) return null;
+  const [rule] = prefs.rules.splice(index, 1);
   saveAlarmPrefs(prefs);
+  return { rule, index };
+}
+
+export function restoreAlarmRule(rule, index) {
+  if (!rule) return false;
+  const prefs = getAlarmPrefs();
+  if (prefs.rules.some((r) => r.id === rule.id)) return false;
+  const pos = Number.isInteger(index) && index >= 0 ? Math.min(index, prefs.rules.length) : prefs.rules.length;
+  prefs.rules.splice(pos, 0, rule);
+  saveAlarmPrefs(prefs);
+  return true;
 }
 
 export function notificationState() {

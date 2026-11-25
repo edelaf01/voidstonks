@@ -3,7 +3,7 @@ import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../ui_components.js";
 import { serverNow } from "../../services/server_clock.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
-import { getItemIcon, progresoSets, etiquetaProgresoSet } from "../../utils/ui_utils.js";
+import { getItemIcon, progresoSets } from "../../utils/ui_utils.js";
 
 const API = "https://api.warframestat.us/pc";
 const CACHE_MS = 5 * 60 * 1000;
@@ -178,6 +178,11 @@ function iconsHtml(names) {
   return imgs ? `<span class="tr-icons">${imgs}</span>` : "";
 }
 
+function relicTierHtml(entry) {
+  const era = lastSegment(entry).match(RELIC_RE);
+  return era ? `<span class="tr-icons"><span class="relic-era-icon tr-era ${RELIC_ERAS[era[1]].toLowerCase()}"></span></span>` : "";
+}
+
 function selfIcon(entry) {
   return [prettyTraderItem(entry)];
 }
@@ -185,34 +190,69 @@ function selfIcon(entry) {
 function itemListHtml(items, costLabel, withCredits, opts = {}) {
   if (!items.length) return "";
   const cls = opts.tiles ? "tr-items tr-items--tiles" : "tr-items";
-  return `<ul class="${cls}">${items
-    .map((it) => {
+  const itemCls = opts.itemClass ? `tr-item ${opts.itemClass}` : "tr-item";
+  const t = opts.t || TEXTS[state.currentLang]?.traders || {};
+  const rows = items.map((it) => {
+    const sets = opts.sets ? opts.sets(it) : [];
+    const prog = sets.length ? progresoSets(sets) : null;
+    const rank = !prog?.total ? 3 : prog.sets > 0 ? 0 : prog.tengo > 0 ? 1 : 2;
+    return { it, sets, prog, rank };
+  });
+  if (opts.sets) rows.sort((a, b) => a.rank - b.rank);
+  return `<ul class="${cls}">${rows
+    .map(({ it, sets, prog }) => {
       const costs = [];
-      if (it.ducats != null) costs.push(`${escapeHTML(String(it.ducats))} ${escapeHTML(costLabel)}`);
+      if (it.ducats != null) costs.push(`${escapeHTML(String(it.ducats))}<span class="${opts.coin === "regal-aya" ? "regal-aya-icon-inline" : opts.coin === "aya" ? "aya-icon-inline" : "ducat-icon-inline"} tr-coin" title="${escapeHTML(costLabel)}"></span>`);
       if (withCredits && it.credits != null)
-        costs.push(`${escapeHTML(Number(it.credits).toLocaleString())} cr`);
-      const icons = opts.icons ? iconsHtml(opts.icons(it)) : "";
-      const sets = opts.sets ? opts.sets(it) : [];
-      const prog = sets.length ? progresoSets(sets) : null;
-      if (prog?.total) return setItemHtml(it, icons, costs, sets, prog);
-      return `<li class="tr-item">${icons || `<span class="tr-icons"></span>`}<span class="tr-item-name">${escapeHTML(prettyTraderItem(it))}</span><span class="tr-item-cost">${costs.join(" · ")}</span></li>`;
+        costs.push(`${escapeHTML(Number(it.credits).toLocaleString())}<span class="credit-icon-inline tr-coin" title="cr"></span>`);
+      const icons = opts.iconsHtml ? opts.iconsHtml(it) : opts.icons ? iconsHtml(opts.icons(it)) : "";
+      const name = prettyTraderItem(it);
+      const rotTag = opts.rotating?.has(name) ? `<span class="tr-rot-tag">${escapeHTML(t.inRotation || "in rotation")}</span>` : "";
+      if (prog?.total) return setItemHtml(name, icons, costs, sets, prog, t, rotTag);
+      const label = rotTag
+        ? `<span class="tr-name-wrap"><span class="tr-item-name">${escapeHTML(name)}</span>${rotTag}</span>`
+        : `<span class="tr-item-name">${escapeHTML(name)}</span>`;
+      return `<li class="${itemCls}">${icons || `<span class="tr-icons"></span>`}${label}<span class="tr-item-cost">${costs.join(" · ")}</span></li>`;
     })
     .join("")}</ul>`;
 }
 
-function setItemHtml(it, icons, costs, sets, prog) {
+function setItemHtml(name, icons, costs, sets, prog, t = TEXTS[state.currentLang]?.traders || {}, rotTag = "") {
   const varios = sets.length > 1;
+  const full = prog.sets || 0;
+  const have = prog.tengo || 0;
+  const status = full > 0 ? "done" : have > 0 ? "part" : "none";
+  const pct = full > 0 ? 100 : Math.min(100, Math.round((have / prog.total) * 100));
+  const badge = full === 1 ? `✓ ${t.complete || "Complete"}` : full > 1 ? `✓ ×${full}` : `${have}/${prog.total}`;
   const cuerpo = sets
     .map((set) => {
       const piezas = prog.piezas.filter((p) => p.set === set);
       if (!piezas.length) return "";
-      const cab = varios ? `<li class="tr-set-sub"><span>${escapeHTML(set)}</span><span>${escapeHTML(etiquetaProgresoSet(progresoSets([set])))}</span></li>` : "";
-      return cab + piezas
-        .map((p) => `<li class="tr-set-part${p.qty >= p.req ? " ok" : ""}"><span>${escapeHTML(p.name.startsWith(`${set} `) ? p.name.slice(set.length + 1) : p.name)}</span><span>${p.qty}/${p.req}</span></li>`)
-        .join("");
+      const setHave = piezas.reduce((s, p) => s + Math.min(p.qty, p.req), 0);
+      const setTotal = piezas.reduce((s, p) => s + p.req, 0);
+      const cab = varios
+        ? `<li class="tr-set-sub"><span class="tr-set-sub-name">${escapeHTML(set)}</span><span class="tr-set-sub-count">${escapeHTML(`${setHave}/${setTotal}`)}</span></li>`
+        : "";
+      return (
+        cab +
+        piezas
+          .map((p) => {
+            const cls = p.qty >= p.req ? " ok" : p.qty === 0 ? " empty" : "";
+            const icon = getItemIcon(p.name);
+            const img = icon
+              ? `<img class="item-icon-mini tr-part-icon" src="${escapeHTML(icon)}" alt="" loading="lazy" onerror="this.remove()">`
+              : "";
+            const label = p.name.startsWith(`${set} `) ? p.name.slice(set.length + 1) : p.name;
+            return `<li class="tr-set-part${cls}">${img}<span class="tr-part-name">${escapeHTML(label)}</span><span class="tr-part-count">${escapeHTML(`${p.qty}/${p.req}`)}</span></li>`;
+          })
+          .join("")
+      );
     })
     .join("");
-  return `<li class="tr-item tr-set"><details><summary class="tr-set-head">${icons || `<span class="tr-icons"><span class="tr-icon"></span></span>`}<span class="tr-item-name">${escapeHTML(prettyTraderItem(it))}</span><span class="tr-set-count">${escapeHTML(etiquetaProgresoSet(prog))}</span><span class="tr-item-cost">${costs.join(" · ")}</span></summary><ul class="tr-set-parts">${cuerpo}</ul></details></li>`;
+  const title = rotTag
+    ? `<span class="tr-name-wrap"><span class="tr-item-name">${escapeHTML(name)}</span>${rotTag}</span>`
+    : `<span class="tr-item-name">${escapeHTML(name)}</span>`;
+  return `<li class="tr-item tr-set tr-set--${status}"><details><summary class="tr-set-head">${icons || `<span class="tr-icons"><span class="tr-icon"></span></span>`}${title}<span class="tr-set-badge ${status}">${escapeHTML(badge)}</span><span class="tr-item-cost">${costs.join(" · ")}</span><span class="tr-set-bar"><i style="width:${pct}%"></i></span></summary><ul class="tr-set-parts">${cuerpo}</ul></details></li>`;
 }
 
 function groupHtml(label, items, costLabel, withCredits, opts) {
@@ -238,14 +278,15 @@ function varziaHtml(vault, t) {
   const now = serverNow();
   const inv = Array.isArray(vault.inventory) ? vault.inventory : [];
   const packs = inv.filter((it) => PACK_RE.test(lastSegment(it)));
+  const rotating = new Set(packs.flatMap(packFrames));
   const relics = inv
     .filter((it) => RELIC_RE.test(lastSegment(it)))
     .map((it) => ({ ...it, ducats: it.ducats ?? it.credits }));
   const groups =
-    groupHtml(t.sets, packs, t.aya, false, { icons: packFrames, sets: packFrames, tiles: true }) +
-    groupHtml(t.warframes, inv.filter(isTraderFrame), t.aya, false, { icons: selfIcon, sets: selfIcon }) +
-    groupHtml(t.weapons, inv.filter(isTraderWeapon), t.aya, false, { icons: selfIcon, sets: selfIcon }) +
-    groupHtml(t.relics, relics, t.aya, false);
+    groupHtml(t.rotation, packs, t.regalAya, false, { coin: "regal-aya", icons: packFrames, tiles: true, itemClass: "tr-pack" }) +
+    groupHtml(t.yourWarframes, inv.filter(isTraderFrame), t.regalAya, false, { coin: "regal-aya", icons: selfIcon, sets: selfIcon, rotating, t }) +
+    groupHtml(t.yourWeapons, inv.filter(isTraderWeapon), t.regalAya, false, { coin: "regal-aya", icons: selfIcon, sets: selfIcon, rotating, t }) +
+    groupHtml(t.relics, relics, t.aya, false, { coin: "aya", iconsHtml: relicTierHtml });
   const next = nextVaultRotation(vault, now);
   const nextHtml = next
     ? `<div class="tr-next">

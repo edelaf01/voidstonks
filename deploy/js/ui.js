@@ -35,6 +35,7 @@ import { exposeGlobals } from "./utils/global_registry.js";
 import { readTabHash, writeTabHash, onTabHashChange } from "./utils/tab_hash.js";
 import { updateGuideLink } from "./ui.components/ui_hints.js";
 import { state, saveAppState, updateInventoryCount, TABS } from "./state.js";
+import { aplicarCtx } from "./utils/deeplinks.js";
 import { renderFarmsTab, stopFarmsTimers } from "./ui.components/farms/ui_farms.js";
 import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inventory/ui_inventory.js";
@@ -104,11 +105,12 @@ export function tabFromUrl() {
 }
 
 export function initTabRouting() {
-  onTabHashChange(TABS, (mode) => {
-    if (mode === state.activeTab) return;
+  onTabHashChange(TABS, (mode, ctx) => {
+    if (mode === state.activeTab && !ctx) return;
     navegandoPorHistorial = true;
     try {
-      switchTab(mode);
+      if (mode !== state.activeTab) switchTab(mode);
+      aplicarCtx(mode, ctx);
     } finally {
       navegandoPorHistorial = false;
     }
@@ -134,6 +136,7 @@ export function switchTab(mode) {
   state.activeTab = mode;
   saveAppState();
   if (!navegandoPorHistorial) writeTabHash(mode);
+  document.dispatchEvent(new CustomEvent("vs:tab", { detail: { mode, fromHistory: navegandoPorHistorial } }));
   updateGuideLink(mode, state.currentLang);
   document
     .querySelectorAll(".tab-btn")
