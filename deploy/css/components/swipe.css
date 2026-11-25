@@ -1,0 +1,24 @@
+.content-area.swipe-next {
+  animation: swipe-next 0.18s ease-out;
+}
+
+.content-area.swipe-prev {
+  animation: swipe-prev 0.18s ease-out;
+}
+
+@keyframes swipe-next {
+  from { opacity: 0.4; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes swipe-prev {
+  from { opacity: 0.4; transform: translateX(-24px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-area.swipe-next,
+  .content-area.swipe-prev {
+    animation: none;
+  }
+}

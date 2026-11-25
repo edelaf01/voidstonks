@@ -96,6 +96,10 @@
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
   <link rel="stylesheet" href="css/components/traders.css?v=1.0" />
   <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/deeplinks.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/swipe.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/palette.css">
+  <link rel="stylesheet" href="css/components/tutorial.css?v=1.0" />
   <link rel="stylesheet" href="css/components/price-columns.css?v=1.0" />
   <link rel="stylesheet" href="css/desktop.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
@@ -568,6 +572,21 @@
           </button>
         </div>
       </div>
+
+      <button type="button" id="btn-palette-trigger" class="palette-trigger vs-plain"
+        aria-label="Buscar en VoidStonks (Ctrl+K)" title="Buscar en VoidStonks (Ctrl+K)" aria-haspopup="dialog">
+        <svg class="palette-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <kbd class="palette-trigger-kbd" aria-hidden="true">Ctrl K</kbd>
+      </button>
+
+      <button type="button" id="btn-tutorial-trigger" class="tutorial-trigger vs-plain"
+        aria-label="?" aria-haspopup="dialog">
+        <span aria-hidden="true">?</span>
+      </button>
 
       <div class="lang-custom-container" id="langSelectorWrapper">
         <button type="button" class="lang-trigger vs-plain" id="langTrigger" aria-haspopup="true"
