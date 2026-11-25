@@ -7,8 +7,8 @@ tab can't do: copying to the clipboard while the game has focus, following the g
 ## How it works
 
 - The main process serves the app at `http://voidstonks.localhost:47823` (the next free port up
-  to 47830). Same origin as before, so the WFM account features stay off, as on any other
-  non-local origin.
+  to 47830). warframe.market login and orders run locally through the `vs:wfm` IPC channel, so
+  the website never sees them.
 - Native features go through `src/preload.cjs` (`window.voidstonksNativo`). The web app talks to
   it from `deploy/js/repositories/launcher.repository.js`. Each feature needs the user's
   permission, stored in `permisos.json` in the app's data folder.
