@@ -104,8 +104,8 @@
 }
 
 .scan-history-btn .icon-clock-svg {
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
     opacity: 0.85;
     transition: transform 0.2s;
 }
@@ -184,8 +184,8 @@
 }
 
 .scan-history-clear-btn .icon-trash-svg {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
 }
 
 .scan-history-list {
@@ -254,8 +254,8 @@
 }
 
 .scan-card-time .icon-clock-mini {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
 }
 
 .scan-card-view-btn {
@@ -280,8 +280,8 @@
 }
 
 .scan-card-view-btn .icon-eye {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
 }
 
 .scan-card-items {
@@ -353,8 +353,8 @@
 }
 
 .scan-card-plat-icon, .scan-card-ducat-icon {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     object-fit: contain;
 }
 
@@ -388,8 +388,8 @@
 }
 
 .scan-card-choose-btn .icon-check {
-    width: 11px;
-    height: 11px;
+    width: 14px;
+    height: 14px;
 }
 
 #inv-hud {

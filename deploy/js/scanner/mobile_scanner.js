@@ -793,7 +793,7 @@ export class MobileScanner {
             <div class="mobile-card-header">${escapeHTML(it.name)}</div>
           </div>
           <div class="mobile-currency-row">
-            <div class="mobile-price">${typeof price === 'number' ? price : "-"}<img src="assets/relic_contents/platinum.webp" alt="PL" title="Platinum" style="width:14px; height:14px; vertical-align:-2px; margin-left:3px;"></div>
+            <div class="mobile-price">${typeof price === 'number' ? price : "-"}<img src="assets/relic_contents/platinum.webp" alt="PL" title="Platinum" style="width:16px; height:16px; vertical-align:-2px; margin-left:3px;"></div>
             ${it.ducats ? `<div class="mobile-ducats">${it.ducats} D</div>` : ""}
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center;">

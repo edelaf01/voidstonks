@@ -166,7 +166,7 @@ export function buildAppraisalCardHTML({ tier, tierColor, priceCalculated, minPr
     : "";
   const similarHtml = withSimilarButton ? `
     <button id="btn-search-similar-rivens" class="btn btn-secondary" style="margin-top: 10px; width: 100%; font-size: 11px; padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(155, 89, 182, 0.2); border: 1px solid rgba(155, 89, 182, 0.4); color: #dcb3ff; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(155, 89, 182, 0.4)'" onmouseout="this.style.background='rgba(155, 89, 182, 0.2)'">
-      <img src="assets/dmg/DmgVoidSmall64.webp" style="width:14px; height:14px; object-fit:contain;"> ${isEs ? "Buscar Rivens Similares" : "Search Similar Rivens"}
+      <img src="assets/dmg/DmgVoidSmall64.webp" style="width:16px; height:16px; object-fit:contain;"> ${isEs ? "Buscar Rivens Similares" : "Search Similar Rivens"}
     </button>
     <div id="similar-rivens-container" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; display: none;"></div>
   ` : "";
