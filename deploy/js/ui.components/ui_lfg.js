@@ -1,6 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
-import { showToast, escapeHTML, showCustomConfirm } from "./ui_components.js";
+import { showToast, escapeHTML, showCustomConfirm, showCustomPrompt } from "./ui_components.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { squadTag } from "../utils/chat_link.js";
@@ -412,19 +412,20 @@ export function renderTradePresets() {
 
 const saveTradePreset = function () {
   const t = TEXTS[state.currentLang].tradePresets || {};
-  const text = (document.getElementById("trade-msg-input")?.value || "").trim();
-  if (!text) {
+  const initialText = (document.getElementById("trade-msg-input")?.value || "").trim();
+  if (!initialText) {
     showToast(t.emptyMsg || "Write a message first");
     return;
   }
-  const name = prompt(t.placeholderName || "Preset name");
-  if (!name) return;
-
-  if (!state.tradePresets) state.tradePresets = [];
-  state.tradePresets.push({ name, text });
-  saveAppState();
-  renderTradePresets();
-  showToast(t.saved || "Preset saved");
+  showCustomPrompt(t.placeholderName || "Preset name", (name) => {
+    const text = (document.getElementById("trade-msg-input")?.value || "").trim();
+    if (!text) return;
+    if (!state.tradePresets) state.tradePresets = [];
+    state.tradePresets.push({ name, text });
+    saveAppState();
+    renderTradePresets();
+    showToast((TEXTS[state.currentLang].tradePresets || {}).saved || "Preset saved");
+  });
 };
 
 const loadTradePreset = function (index) {
@@ -444,7 +445,6 @@ const deleteTradePreset = function (index) {
     const [item] = state.tradePresets.splice(index, 1);
     saveAppState();
     renderTradePresets();
-  });
     if (!item) return;
     const u = TEXTS[state.currentLang].undo;
     showToast(u.tradePresetDeleted, {
@@ -458,6 +458,7 @@ const deleteTradePreset = function (index) {
         },
       },
     });
+  });
 };
 
 export function renderLFGPresets() {
@@ -498,41 +499,40 @@ export function renderLFGPresets() {
 
 const saveLFGPreset = function () {
   const t = TEXTS[state.currentLang].lfgPresets;
-  const name = prompt(t.placeholder);
-  if (!name) return;
+  showCustomPrompt(t.placeholder, (name) => {
+    const activity = document.getElementById("lfgActivity").value;
+    const extra = document.getElementById("lfgExtra").value;
+    const count = state.lfgCount;
 
-  const activity = document.getElementById("lfgActivity").value;
-  const extra = document.getElementById("lfgExtra").value;
-  const count = state.lfgCount;
+    const roles = Array.from(document.querySelectorAll(".lfg-role:checked")).map(
+      (c) => c.value,
+    );
 
-  const roles = Array.from(document.querySelectorAll(".lfg-role:checked")).map(
-    (c) => c.value,
-  );
+    const specificData = {};
+    const runsEl = document.getElementById("lfg-eidolon-runs");
+    if (runsEl) specificData.runs = runsEl.value;
 
-  const specificData = {};
-  const runsEl = document.getElementById("lfg-eidolon-runs");
-  if (runsEl) specificData.runs = runsEl.value;
+    const arbiEl = document.getElementById("lfg-arbi-type");
+    if (arbiEl) specificData.arbiType = arbiEl.value;
 
-  const arbiEl = document.getElementById("lfg-arbi-type");
-  if (arbiEl) specificData.arbiType = arbiEl.value;
+    const eliteEda = document.getElementById("lfg-eda-elite");
+    if (eliteEda) specificData.elite = eliteEda.checked;
 
-  const eliteEda = document.getElementById("lfg-eda-elite");
-  if (eliteEda) specificData.elite = eliteEda.checked;
+    const eliteTemp = document.getElementById("lfg-temp-elite");
+    if (eliteTemp) specificData.eliteTemp = eliteTemp.checked;
 
-  const eliteTemp = document.getElementById("lfg-temp-elite");
-  if (eliteTemp) specificData.eliteTemp = eliteTemp.checked;
+    const selects = {};
+    document.querySelectorAll("#lfg-dynamic-options select").forEach((s) => { selects[s.id] = s.value; });
+    specificData.selects = selects;
 
-  const selects = {};
-  document.querySelectorAll("#lfg-dynamic-options select").forEach((s) => { selects[s.id] = s.value; });
-  specificData.selects = selects;
+    const newPreset = { name, activity, extra, count, roles, specificData };
 
-  const newPreset = { name, activity, extra, count, roles, specificData };
-
-  if (!state.lfgPresets) state.lfgPresets = [];
-  state.lfgPresets.push(newPreset);
-  saveAppState();
-  renderLFGPresets();
-  showToast(t.saved || "Preset saved");
+    if (!state.lfgPresets) state.lfgPresets = [];
+    state.lfgPresets.push(newPreset);
+    saveAppState();
+    renderLFGPresets();
+    showToast((TEXTS[state.currentLang].lfgPresets || {}).saved || "Preset saved");
+  });
 };
 
 const loadLFGPreset = function (index) {
