@@ -1,6 +1,6 @@
 {
- "generado": "2026-11-25",
- "serie_hasta": "2026-11-25",
+ "generado": "2026-11-26",
+ "serie_hasta": "2026-11-26",
  "globales": [
   {
    "tipo": "global_weekly",
@@ -304,6 +304,19 @@
    "de": 0.52,
    "a": 1.8,
    "pop_de": 4.4,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-16",
+   "dias_tras_weekly": 0,
+   "arma": "akjagara",
+   "fecha": "2026-11-16",
+   "desde": "2026-11-09",
+   "tipo": "bajada_venta",
+   "pct": -31,
+   "de": 407,
+   "a": 280,
+   "pop_de": 2.2,
    "fuente": "de"
   },
   {
