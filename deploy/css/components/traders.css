@@ -115,6 +115,13 @@
     white-space: nowrap;
 }
 
+.tr-item-name .farm-link {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .tr-item-cost {
     flex-shrink: 0;
     margin-left: auto;

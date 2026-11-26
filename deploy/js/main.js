@@ -54,6 +54,7 @@ import { initSwipeNav } from "./utils/swipe_nav.js";
 import { initPalette } from "./ui.components/ui_palette.js";
 import { initTutorial } from "./ui.components/ui_tutorial.js";
 import { aplicarHashInicial } from "./utils/deeplinks.js";
+import { initFarmLinks } from "./utils/farm_links.js";
 
 let escanerVivo = null;
 const cargaEscaner = () => (escanerVivo ||= import("./scanner/live_scanner.js"));
@@ -95,6 +96,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSwipeNav();
   initPalette();
   initTutorial();
+  initFarmLinks();
 
   if (state.activeTab === "lfg") initLFGPresets();
 

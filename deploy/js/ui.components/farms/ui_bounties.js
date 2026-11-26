@@ -3,6 +3,7 @@ import { TEXTS, VANIA_NAMES, CHALLENGE_MAP } from "../../config.js";
 import { fetchActiveBounties } from "../../services/farms/bounties.service.js";
 import { escapeHTML, showToast } from "../ui_components.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
+import { farmLinkHtml } from "../../utils/farm_links.js";
 import {
   getViewPrefs,
   saveViewPrefs,
@@ -71,13 +72,13 @@ function getLevelDisplay(m) {
 
 function getRewardsContent(m) {
   if (!m.detailedRewards) {
-    const rewardListHtml = m.rewards.map((r) => `<li class="drop-item">${escapeHTML(r)}</li>`).join("");
+    const rewardListHtml = m.rewards.map((r) => `<li class="drop-item">${farmLinkHtml(r)}</li>`).join("");
     return `<ul class="drop-list">${rewardListHtml}</ul>`;
   }
   return m.detailedRewards.map((stage) => {
     const rows = stage.drops.map((d) => {
       const ayaClass = d.name.includes("Aya") ? "aya" : "";
-      return `<div class="drop-row"><span class="drop-name ${ayaClass}">${escapeHTML(d.name)}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`;
+      return `<div class="drop-row"><span class="drop-name ${ayaClass}">${farmLinkHtml(d.name)}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`;
     }).join("");
     return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
   }).join("");

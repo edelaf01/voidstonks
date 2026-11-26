@@ -2,6 +2,7 @@ import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML, showToast } from "../ui_components.js";
 import { damageMeta, damageIconHtml } from "../../utils/damage_types.js";
+import { farmLinkHtml } from "../../utils/farm_links.js";
 import { fetchLichWeapons } from "../../services/farms/lich_weapons.service.js";
 import { serverNow, isClockSynced } from "../../services/server_clock.service.js";
 import {
@@ -109,7 +110,7 @@ function weaponCardHtml(w, t) {
               <img class="lw-card-img" src="${escapeHTML(weaponIconPath(w.name))}" alt="" loading="lazy"
                    onerror="this.style.visibility='hidden';">
               <div class="lw-card-id">
-                  <span class="lw-card-name">${escapeHTML(w.name)}</span>
+                  <span class="lw-card-name">${farmLinkHtml(w.name, "weapon")}</span>
                   <span class="lw-card-cat">${escapeHTML(categoryLabel(w, t))}</span>
               </div>
               ${wikiLink}

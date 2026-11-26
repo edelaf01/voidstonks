@@ -22,8 +22,35 @@ let signatures = {};
 
 const t = () => (TEXTS[state.currentLang] || TEXTS.es).palette || TEXTS.es.palette;
 
+const BLOCKING_MODAL = [
+  ".tutorial-veil:not(.hidden)",
+  "#scan-success-modal:not(.hidden)",
+  "#grading-modal:not(.hidden)",
+  "#update-modal:not(.hidden)",
+  "#calibration-modal:not(.hidden)",
+  "#orokin-confirm-modal:not(.hidden)",
+  "#orokin-prompt-modal:not(.hidden)",
+  "#ds-permisos:not(.hidden)",
+  ".orders-modal-backdrop:not(.hidden)",
+  '[role="dialog"]',
+  '[aria-modal="true"]',
+].join(",");
+
 function esEditable(el) {
-  return !!el?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+  if (!(el instanceof Element)) return false;
+  if (el instanceof HTMLElement && el.isContentEditable) return true;
+  return Boolean(el.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
+}
+
+function hayModalAbierto() {
+  if (document.body.classList.contains("tutorial-open")) return true;
+  for (const el of document.querySelectorAll(BLOCKING_MODAL)) {
+    if (veil?.contains(el)) continue;
+    if (el.closest(".hidden, [hidden], .closed")) continue;
+    if (getComputedStyle(el).display === "none") continue;
+    return true;
+  }
+  return false;
 }
 
 function slugIconPath(name) {
@@ -318,15 +345,42 @@ export function closePalette() {
 
 function close(restore = true) {
   if (!veil || veil.classList.contains("hidden")) return;
+  if (veil.contains(document.activeElement)) document.activeElement.blur?.();
   veil.classList.add("hidden");
   document.body.classList.remove("palette-open");
   if (restore && lastFocus?.isConnected) lastFocus.focus?.();
   lastFocus = null;
 }
 
+function resolverFocoDestino(r, previo) {
+  const esVisible = (el) => el?.isConnected && !el.closest?.(".hidden, [hidden]");
+  const inputId =
+    r.kind === "relic"
+      ? "relicInput"
+      : r.kind === "set"
+        ? "setItemInput"
+        : r.kind === "riven"
+          ? "rivenWeaponInput"
+          : null;
+  const inputDestino = inputId ? document.getElementById(inputId) : null;
+  if (esVisible(inputDestino)) return inputDestino;
+  if (previo !== document.body && esVisible(previo)) return previo;
+  const btnId =
+    r.kind === "tab"
+      ? `btn-${r.id}`
+      : r.kind === "relic" || r.kind === "set" || r.kind === "riven"
+        ? `btn-${r.kind}`
+        : null;
+  const destino = btnId ? document.getElementById(btnId) : null;
+  if (esVisible(destino)) return destino;
+  if (previo?.isConnected) return previo;
+  return document.body;
+}
+
 function choose(i) {
   const r = results[i];
   if (!r) return;
+  const previo = lastFocus;
   recordRecent(r);
   close(false);
   if (r.kind === "tab") {
@@ -334,6 +388,7 @@ function choose(i) {
   } else if (r.kind === "relic" || r.kind === "set" || r.kind === "riven") {
     globalThis.navegarA?.({ tab: r.kind, ctx: r.id });
   }
+  resolverFocoDestino(r, previo)?.focus?.();
 }
 
 export function initPalette() {
@@ -350,14 +405,16 @@ export function initPalette() {
     }
   });
   document.addEventListener("keydown", (e) => {
+    const abierta = Boolean(veil && !veil.classList.contains("hidden"));
     if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+      if (!abierta && hayModalAbierto()) return;
       e.preventDefault();
-      if (veil && !veil.classList.contains("hidden")) close();
+      if (abierta) close();
       else openPalette();
       return;
     }
     if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.defaultPrevented) {
-      if (esEditable(e.target) || (veil && !veil.classList.contains("hidden"))) return;
+      if (abierta || hayModalAbierto() || esEditable(e.target) || esEditable(document.activeElement)) return;
       e.preventDefault();
       openPalette();
     }

@@ -65,11 +65,12 @@ export function showToast(message, options = {}) {
   const toast = document.createElement("div");
   toast.className = `wf-toast ${type}`;
   const icon = type === "error" ? "⚠️" : (type === "success" ? "✓" : "ℹ");
+  const closeLabel = TEXTS[state.currentLang]?.toastClose || TEXTS.en?.toastClose || "Close";
 
   toast.innerHTML = `
     <span class="toast-icon">${icon}</span>
     <span class="toast-message">${html ? message : escapeHTML(String(message ?? ""))}</span>
-    <span class="toast-close">×</span>
+    <button type="button" class="toast-close" aria-label="${escapeHTML(closeLabel)}">×</button>
   `;
 
   let closed = false;
@@ -111,7 +112,39 @@ export function showToast(message, options = {}) {
   };
 
   if (duration > 0) {
-    timer = setTimeout(removeToast, duration);
+    let remaining = duration;
+    let startedAt = Date.now();
+    let hovering = false;
+    let focused = false;
+    const pause = () => {
+      if (!timer) return;
+      clearTimeout(timer);
+      timer = null;
+      remaining = Math.max(0, remaining - (Date.now() - startedAt));
+    };
+    const resume = () => {
+      if (closed || timer || hovering || focused) return;
+      startedAt = Date.now();
+      timer = setTimeout(removeToast, remaining);
+    };
+    toast.addEventListener("mouseenter", () => {
+      hovering = true;
+      pause();
+    });
+    toast.addEventListener("mouseleave", () => {
+      hovering = false;
+      resume();
+    });
+    toast.addEventListener("focusin", () => {
+      focused = true;
+      pause();
+    });
+    toast.addEventListener("focusout", (e) => {
+      if (e.relatedTarget && toast.contains(e.relatedTarget)) return;
+      focused = false;
+      resume();
+    });
+    timer = setTimeout(removeToast, remaining);
   }
 
   container.appendChild(toast);
@@ -420,8 +453,17 @@ export function initGlobalTooltipSystem() {
   });
 
   document.addEventListener("click", (e) => {
-    let target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
     if (e.target.closest("#global-tooltip")) return;
+    if (e.target.closest(".farm-link")) {
+      if (openTimer) clearTimeout(openTimer);
+      if (closeTimer) clearTimeout(closeTimer);
+      currentHoverTarget = null;
+      tooltipEl.classList.add("hidden");
+      tooltipEl.classList.remove("mega-mode");
+      return;
+    }
+    let target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    if (target && (!target.isConnected || target.closest("a[href], .inv-card-btn, [role='tab'], .delete-set-btn, .set-sell-btn, .toggle-icon"))) target = null;
     // on touch the same tap runs the control, only tabs and links drop the tooltip
     if (target && isTouchPointer() && target.closest(".tab-btn, a[href]")) target = null;
     if (target) {

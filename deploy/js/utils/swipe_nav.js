@@ -3,12 +3,19 @@ import { state } from "../state.js";
 const MIN_DX = 72;
 const MAX_MS = 700;
 const RATIO = 1.7;
+const EDGE_PX = 24;
 const SUBVISTAS = ["bounties", "weapons", "traders"];
 const SUBVISTA_KEY = "vs_farms_subview_v1";
 const IGNORADO =
   'input, textarea, select, [contenteditable], [draggable="true"], .tabs, #tab-fan, #tab-fan-overlay, [role="dialog"], [aria-modal="true"], [role="slider"], canvas';
+const DRAWERS_ABIERTOS =
+  "#inventory-container.open, #best-missions-container.open, #cloud-sync-container.open, #ds-eelog.open";
+const MODALES =
+  '.palette-veil, .tutorial-veil, #scan-success-modal, #grading-modal, #update-modal, #calibration-modal, #orokin-confirm-modal, #orokin-prompt-modal, #ds-permisos, .orders-modal-backdrop, [role="dialog"], [aria-modal="true"]';
 
 let inicio = null;
+let ultimaSubvista = null;
+let ultimaLeida = null;
 
 function pestanas() {
   return [...document.querySelectorAll('.tabs > .tab-btn[role="tab"]:not(.is-wip)')]
@@ -25,9 +32,26 @@ function desplazaEnX(el) {
   return false;
 }
 
+function haySuperposicionAbierta() {
+  if (
+    document.body.classList.contains("tab-fan-open") ||
+    document.body.classList.contains("palette-open") ||
+    document.body.classList.contains("tutorial-open")
+  ) {
+    return true;
+  }
+  if (document.querySelector(DRAWERS_ABIERTOS)) return true;
+  for (const el of document.querySelectorAll(MODALES)) {
+    if (el.closest(".hidden, [hidden], .closed")) continue;
+    if (getComputedStyle(el).display === "none") continue;
+    return true;
+  }
+  return false;
+}
+
 function bloqueado(target) {
+  if (haySuperposicionAbierta()) return true;
   if (!(target instanceof Element)) return true;
-  if (document.body.classList.contains("tab-fan-open")) return true;
   if (target.closest(IGNORADO)) return true;
   return desplazaEnX(target);
 }
@@ -41,22 +65,34 @@ function animar(dir) {
   area.classList.add(dir > 0 ? "swipe-next" : "swipe-prev");
 }
 
-function subvistaActual() {
+function leerSubvista() {
   try {
     const v = localStorage.getItem(SUBVISTA_KEY);
-    return SUBVISTAS.includes(v) ? v : SUBVISTAS[0];
-  } catch {
-    return SUBVISTAS[0];
+    if (SUBVISTAS.includes(v)) return v;
+  } catch {}
+  const dom = document.querySelector(".farms-sub-btn.active")?.dataset.subview;
+  return SUBVISTAS.includes(dom) ? dom : null;
+}
+
+function subvistaActual() {
+  const leida = leerSubvista();
+  if (leida && leida !== ultimaLeida) {
+    ultimaLeida = leida;
+    ultimaSubvista = leida;
   }
+  return SUBVISTAS.includes(ultimaSubvista) ? ultimaSubvista : leida || SUBVISTAS[0];
 }
 
 function mover(dir) {
   const activa = state.activeTab;
   if (activa === "bounties") {
-    const i = SUBVISTAS.indexOf(subvistaActual());
+    const actual = subvistaActual();
+    ultimaSubvista = actual;
+    const i = SUBVISTAS.indexOf(actual);
     const j = i + dir;
     if (j >= 0 && j < SUBVISTAS.length) {
-      globalThis.switchFarmsSubview?.(SUBVISTAS[j]);
+      ultimaSubvista = SUBVISTAS[j];
+      globalThis.switchFarmsSubview?.(ultimaSubvista);
       animar(dir);
       return;
     }
@@ -66,7 +102,7 @@ function mover(dir) {
   const destino = lista[i + dir];
   if (i === -1 || !destino) return;
   globalThis.switchTab(destino);
-  if (destino === "bounties" && dir < 0) globalThis.switchFarmsSubview?.(SUBVISTAS[0]);
+  if (destino === "bounties" && dir < 0) globalThis.switchFarmsSubview?.(subvistaActual());
   animar(dir);
 }
 
@@ -74,6 +110,8 @@ function alEmpezar(e) {
   inicio = null;
   if (e.touches.length !== 1 || bloqueado(e.target)) return;
   const t = e.touches[0];
+  const w = globalThis.innerWidth || document.documentElement.clientWidth || 0;
+  if (t.clientX < EDGE_PX || (w > 0 && w - t.clientX < EDGE_PX)) return;
   inicio = { x: t.clientX, y: t.clientY, t: Date.now() };
 }
 

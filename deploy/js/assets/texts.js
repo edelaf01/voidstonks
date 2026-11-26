@@ -19,6 +19,10 @@ export const TEXTS = {
       copied: "Enlace copiado al portapapeles",
       copyError: "No se pudo copiar el enlace",
     },
+    farmLinks: {
+      openRelic: "Abrir en Reliquias",
+      openRiven: "Abrir en Rivens",
+    },
     palette: {
       title: "Paleta de comandos",
       placeholder: "Buscar pestaña, reliquia, set o riven...",
@@ -1334,6 +1338,10 @@ export const TEXTS = {
       share: "Share link",
       copied: "Link copied to clipboard",
       copyError: "Could not copy the link",
+    },
+    farmLinks: {
+      openRelic: "Open in Relics",
+      openRiven: "Open in Rivens",
     },
     palette: {
       title: "Command palette",
