@@ -150,6 +150,7 @@
     overflow: hidden;
     flex-shrink: 0;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    container-type: inline-size;
 }
 
 .set-title {
@@ -502,4 +503,1084 @@
 .set-trend-empty {
     color: #888;
     line-height: 1.4;
+}
+
+.inv-set-group.sig-vender,
+.inv-card-row.sig-vender,
+.inv-vt-item.sig-vender,
+.inv-vt-chip.sig-vender { --sig: var(--wf-orokin); }
+.inv-set-group.sig-comprar,
+.inv-card-row.sig-comprar,
+.inv-vt-item.sig-comprar,
+.inv-vt-chip.sig-comprar { --sig: var(--wf-blue); }
+.inv-set-group.sig-esperar,
+.inv-card-row.sig-esperar,
+.inv-vt-item.sig-esperar,
+.inv-vt-chip.sig-esperar { --sig: var(--wf-forma); }
+
+.inv-set-group.sig-vender,
+.inv-set-group.sig-comprar,
+.inv-set-group.sig-esperar {
+    position: relative;
+}
+
+.inv-set-group.sig-vender::before,
+.inv-set-group.sig-comprar::before,
+.inv-set-group.sig-esperar::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--sig);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.inv-set-header .header-controls {
+    width: 60px;
+    align-items: flex-end;
+}
+
+.inv-set-header .header-controls > div {
+    justify-content: flex-end;
+}
+
+.inv-set-header .header-controls .toggle-icon {
+    align-self: flex-end;
+    width: 26px;
+    text-align: center;
+}
+
+.inv-set-header .header-info {
+    width: 96px;
+}
+
+.momento-slot {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    min-height: 18px;
+}
+
+.momento-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-sizing: border-box;
+    width: 92px;
+    height: 18px;
+    border: 1.5px solid var(--sig);
+    border-radius: 9px;
+    color: var(--sig);
+    background: transparent;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    opacity: 0.88;
+    cursor: help;
+}
+
+.momento-pill:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 1px;
+    opacity: 1;
+}
+
+.momento-pill.conf-alta { border-style: solid; }
+.momento-pill.conf-media { border-style: dashed; }
+.momento-pill.conf-baja { border-style: dotted; }
+
+.momento-pill.es-propio {
+    background: color-mix(in srgb, var(--sig) 22%, transparent);
+    opacity: 1;
+}
+
+.momento-flecha {
+    font-size: 0.6rem;
+}
+
+.momento-txt {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.inv-set-header .header-spark {
+    flex: 0 0 100px;
+    width: 100px;
+    min-width: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.momento-spark {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: 24px;
+    overflow: visible;
+    cursor: help;
+    border-radius: 2px;
+}
+
+.momento-spark:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+}
+
+.momento-linea {
+    fill: none;
+    stroke: var(--label-color);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.momento-punto {
+    fill: var(--sig, var(--wf-forma));
+    stroke: none;
+}
+
+.inv-set-header .header-fase {
+    flex: 0 0 100%;
+    font-size: 0.68rem;
+    color: var(--wf-forma);
+    line-height: 1.3;
+    text-align: left;
+}
+
+.inv-set-header .header-fase[hidden] {
+    display: none;
+}
+
+.inv-set-header {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    transition: background-color 0.15s ease;
+}
+
+.inv-set-group {
+    transition: border-color 0.15s ease;
+}
+
+.inv-set-header .tracker-link-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin-left: 8px;
+    vertical-align: middle;
+    flex-shrink: 0;
+    opacity: 0.85;
+    border-radius: var(--radius-ctl);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.inv-set-header .set-title {
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.inv-set-header .set-count-badge,
+.inv-set-header .set-total-price,
+.inv-set-header .set-price-marker,
+.inv-set-header .set-listed-tag {
+    cursor: help;
+}
+
+.inv-set-header .tracker-link-icon:focus-visible,
+.inv-set-header .market-link-icon:focus-visible,
+.inv-set-header .set-count-badge:focus-visible,
+.inv-set-header .set-total-price:focus-visible,
+.inv-set-header .set-price-marker:focus-visible,
+.inv-set-header .set-listed-tag:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+.inv-card {
+    margin: 6px 10px 10px;
+    background: var(--wf-panel-bg);
+    border: 1px solid var(--wf-border-box);
+    border-radius: var(--radius-box);
+    overflow: hidden;
+    flex-shrink: 0;
+    container-type: inline-size;
+}
+
+.inv-card[hidden] {
+    display: none;
+}
+
+.inv-card-btn {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.inv-card-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--wf-border-box);
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.inv-card-tab {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 11px 8px;
+    color: var(--wf-forma);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-card-tab[aria-selected="true"] {
+    color: var(--wf-gold-text);
+    border-bottom-color: var(--wf-gold-text);
+    background: color-mix(in srgb, var(--wf-gold-text) 8%, transparent);
+}
+
+.inv-card-tab:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: -2px;
+}
+
+.inv-card-bd {
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0;
+    padding: 2px 6px;
+    border-radius: 9px;
+    border: 1px solid var(--wf-border-ctl);
+    color: var(--wf-uncommon);
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.inv-card-bd.is-gold {
+    color: var(--wf-orokin);
+    border-color: var(--wf-orokin);
+}
+
+.inv-card-bd.is-red {
+    color: var(--wf-error);
+    border-color: var(--wf-error);
+    background: color-mix(in srgb, var(--wf-error) 12%, transparent);
+}
+
+.inv-card-body {
+    padding: 12px 12px 14px;
+}
+
+.inv-card-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.inv-card-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--wf-border-ctl);
+    border-radius: 14px;
+    padding: 4px 10px;
+    color: var(--wf-uncommon);
+    font-size: 0.74rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.inv-card-chip.is-tone-all { --chip-c: var(--wf-gold-text); }
+.inv-card-chip.is-tone-vender { --chip-c: var(--wf-orokin); }
+.inv-card-chip.is-tone-comprar { --chip-c: var(--wf-blue); }
+.inv-card-chip.is-tone-esperar { --chip-c: var(--wf-forma); }
+.inv-card-chip.is-tone-own { --chip-c: var(--wf-green); }
+
+.inv-card-chip[aria-pressed="true"] {
+    color: inherit;
+    border-color: var(--chip-c, var(--wf-gold-text));
+    background: color-mix(in srgb, var(--chip-c, var(--wf-gold-text)) 16%, transparent);
+}
+
+.inv-card-chip[aria-pressed="true"] .inv-card-n {
+    color: var(--chip-c, var(--wf-gold-text));
+}
+
+.inv-card-chip:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+}
+
+.inv-card-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--chip-c, var(--wf-forma));
+    flex: 0 0 auto;
+}
+
+.inv-card-n {
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 0.68rem;
+    color: var(--wf-forma);
+}
+
+.inv-card-ctl {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 14px;
+    margin: 12px 0 10px;
+}
+
+.inv-card-ctl.is-flush {
+    margin-top: 0;
+}
+
+.inv-card-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.inv-card-ctrl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inv-card-lab {
+    color: var(--wf-forma);
+    font-size: 0.66rem;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.inv-card-counts {
+    display: flex;
+    gap: 12px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    cursor: help;
+    border-radius: 3px;
+}
+
+.inv-card-counts:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+}
+
+.inv-up { color: var(--wf-green); }
+.inv-down { color: var(--wf-error); }
+.inv-flat { color: var(--wf-forma); }
+
+.inv-card-seg {
+    display: inline-flex;
+    border: 1px solid var(--wf-border-ctl);
+    border-radius: var(--radius-ctl);
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.inv-card-seg-btn {
+    background: transparent;
+    border: 0;
+    border-right: 1px solid var(--wf-border-ctl);
+    color: var(--wf-forma);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.inv-card-seg-btn:last-child {
+    border-right: 0;
+}
+
+.inv-card-seg-btn[aria-pressed="true"] {
+    color: var(--wf-gold-text);
+    background: color-mix(in srgb, var(--wf-gold-text) 14%, transparent);
+    box-shadow: inset 0 -2px 0 var(--wf-gold-text);
+}
+
+.inv-card-seg-btn:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: -2px;
+}
+
+.inv-card-head {
+    display: none;
+    padding: 0 12px 6px 15px;
+    color: var(--wf-forma);
+    font-size: 0.64rem;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.inv-card-head .is-r { text-align: right; }
+.inv-card-head .is-c { text-align: center; }
+
+.inv-card-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+    grid-template-areas:
+        "nm nm pc"
+        "pl sp pr";
+    row-gap: 7px;
+    column-gap: 8px;
+    align-items: center;
+    background: color-mix(in srgb, var(--wf-panel-bg) 88%, var(--wf-forma) 12%);
+    border: 1px solid transparent;
+    border-radius: var(--radius-ctl);
+    padding: 9px 10px 9px 12px;
+    min-height: 52px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-card-row + .inv-card-row {
+    margin-top: 5px;
+}
+
+.inv-card-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+    background: var(--sig, var(--wf-forma));
+    pointer-events: none;
+}
+
+.inv-card-row.is-sell {
+    grid-template-columns: 100px minmax(0, 1fr) auto;
+    grid-template-areas:
+        "nm nm cdw"
+        "sp sp pr";
+}
+
+.inv-card-nm {
+    grid-area: nm;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.inv-card-nm-top {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.inv-card-name {
+    position: relative;
+    flex: 0 1 auto;
+    background: transparent;
+    border: 0;
+    padding: 2px 0;
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.25;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: underline dotted color-mix(in srgb, var(--wf-gold-text) 45%, transparent);
+    text-underline-offset: 2px;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.inv-card-name::after {
+    content: "";
+    position: absolute;
+    inset: -5px -3px;
+}
+
+.inv-card-name:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+    border-radius: 2px;
+    color: var(--wf-gold-text);
+}
+
+.inv-card-acts {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    margin-left: auto;
+    flex-shrink: 0;
+    transition: opacity 0.15s ease;
+}
+
+.inv-card-act {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0 1px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-ctl);
+    background: transparent;
+    color: var(--wf-forma);
+    text-decoration: none;
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-card-act::after {
+    content: "";
+    position: absolute;
+    inset: -6px -4px;
+}
+
+.inv-card-act:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 1px;
+    color: var(--wf-gold-text);
+}
+
+.inv-card-nm small {
+    color: var(--wf-forma);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.inv-card-row.is-sell .inv-card-nm small {
+    white-space: normal;
+}
+
+.inv-card-own {
+    flex-shrink: 0;
+    font-style: normal;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 0.66rem;
+    color: var(--wf-green);
+    border: 1px solid color-mix(in srgb, var(--wf-green) 50%, transparent);
+    border-radius: 3px;
+    padding: 0 4px;
+    cursor: help;
+}
+
+.inv-card-own:focus-visible,
+.inv-card-pr[tabindex]:focus-visible,
+.inv-card-pc:focus-visible,
+.inv-card-cd:focus-visible,
+.inv-vt-pct:focus-visible,
+.inv-vt-price:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+.inv-card-pl {
+    grid-area: pl;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.inv-card-sp {
+    grid-area: sp;
+    display: flex;
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+.inv-card-pr {
+    grid-area: pr;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    white-space: nowrap;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+}
+
+.inv-card-pr[tabindex],
+.inv-card-pc,
+.inv-card-cd,
+.inv-vt-pct,
+.inv-vt-price {
+    cursor: help;
+}
+
+.inv-card-was,
+.inv-card-ar {
+    color: var(--wf-forma);
+}
+
+.inv-card-pc {
+    grid-area: pc;
+    text-align: right;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-weight: 800;
+    font-size: 0.86rem;
+    white-space: nowrap;
+}
+
+.inv-card-cdw {
+    grid-area: cdw;
+    display: flex;
+    justify-content: flex-end;
+    align-self: start;
+}
+
+.inv-card-cd {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    border: 1px solid var(--wf-error);
+    color: var(--wf-error);
+    border-radius: var(--radius-ctl);
+    padding: 3px 7px;
+    background: color-mix(in srgb, var(--wf-error) 10%, transparent);
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.inv-card-cd b {
+    font-size: 0.92rem;
+    font-weight: 800;
+}
+
+.inv-card-cd span {
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.inv-card-cd.is-soon {
+    background: color-mix(in srgb, var(--wf-error) 20%, transparent);
+}
+
+.inv-card-cd.is-mid {
+    border-color: var(--wf-common);
+    color: var(--wf-common);
+    background: color-mix(in srgb, var(--wf-common) 12%, transparent);
+}
+
+.inv-card-cd.is-far {
+    border-color: var(--wf-forma);
+    color: var(--wf-forma);
+    background: color-mix(in srgb, var(--wf-forma) 10%, transparent);
+}
+
+.inv-card-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--wf-forma);
+    font-size: 0.76rem;
+}
+
+.inv-card-note i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--wf-orokin);
+    flex: 0 0 auto;
+}
+
+.inv-card-more {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    background: transparent;
+    border: 1px dashed var(--wf-border-ctl);
+    color: var(--wf-gold-text);
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 8px;
+    border-radius: var(--radius-ctl);
+    letter-spacing: 0.3px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-card-more:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 2px;
+}
+
+.inv-card-hint {
+    margin-left: 8px;
+    color: var(--wf-forma);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.inv-card-empty {
+    color: var(--wf-forma);
+    padding: 14px 4px;
+    font-size: 0.82rem;
+}
+
+.inv-vt {
+    position: relative;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.inv-vt-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 48px 16px minmax(0, 1fr);
+    column-gap: 6px;
+    padding-bottom: 16px;
+}
+
+.inv-vt-item:last-child {
+    padding-bottom: 0;
+}
+
+.inv-vt-item::before {
+    content: "";
+    position: absolute;
+    left: calc(48px + 6px + 7px);
+    top: 14px;
+    bottom: -4px;
+    width: 2px;
+    background: var(--wf-border-box);
+}
+
+.inv-vt-item:last-child::before {
+    display: none;
+}
+
+.inv-vt-date {
+    text-align: right;
+    padding-top: 1px;
+}
+
+.inv-vt-date b {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.inv-vt-date span {
+    font-size: 0.68rem;
+    color: var(--wf-forma);
+}
+
+.inv-vt-mark {
+    display: flex;
+    justify-content: center;
+    padding-top: 4px;
+    position: relative;
+    z-index: 1;
+}
+
+.inv-vt-mark i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--sig, var(--wf-forma));
+    background: var(--wf-panel-bg);
+}
+
+.inv-vt-item.is-past .inv-vt-mark i {
+    background: var(--sig, var(--wf-forma));
+    opacity: 0.55;
+}
+
+.inv-vt-content {
+    min-width: 0;
+}
+
+.inv-vt-content b,
+.inv-vt-head-link {
+    display: inline-block;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.inv-vt-content p {
+    margin: 2px 0 8px;
+    color: var(--wf-forma);
+    font-size: 0.74rem;
+}
+
+.inv-vt-sets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+}
+
+.inv-vt-chip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 5px;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--wf-panel-bg) 88%, var(--wf-forma) 12%);
+    border: 1px solid color-mix(in srgb, var(--wf-border-ctl) 55%, transparent);
+    border-left: 3px solid var(--sig, var(--wf-forma));
+    border-radius: 3px;
+    padding: 3px 5px 3px 7px;
+    font-size: 0.76rem;
+    color: var(--wf-uncommon);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-vt-chip .inv-card-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.inv-vt-chip .inv-card-acts {
+    margin-left: 0;
+}
+
+.inv-vt-chip .inv-card-act {
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 0.76rem;
+}
+
+.inv-set-group.inv-set-flash {
+    border-color: var(--wf-gold-text);
+    animation: inv-set-flash 1.4s ease-out;
+}
+
+@keyframes inv-set-flash {
+    0% {
+        box-shadow: 0 0 0 2px var(--wf-gold-text);
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+.inv-vt-pct,
+.inv-vt-price {
+    flex-shrink: 0;
+    font-style: normal;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.inv-vt-price {
+    color: var(--wf-forma);
+}
+
+@media (hover: hover) {
+    .inv-card-tab:hover {
+        color: var(--wf-uncommon);
+    }
+
+    .inv-card-tab[aria-selected="true"]:hover {
+        color: var(--wf-gold-text);
+    }
+
+    .inv-card-chip:hover {
+        border-color: var(--wf-forma);
+        color: inherit;
+    }
+
+    .inv-card-seg-btn:hover:not([aria-pressed="true"]) {
+        color: var(--wf-uncommon);
+        background: color-mix(in srgb, var(--wf-uncommon) 8%, transparent);
+    }
+
+    .inv-card-more:hover {
+        background: color-mix(in srgb, var(--wf-gold-text) 10%, transparent);
+        border-color: var(--wf-gold-text);
+    }
+
+    .inv-card-acts {
+        opacity: 0.72;
+    }
+
+    .inv-card-row:hover {
+        background: color-mix(in srgb, var(--wf-panel-bg) 78%, var(--wf-uncommon) 10%);
+        border-color: color-mix(in srgb, var(--sig, var(--wf-border-ctl)) 48%, transparent);
+    }
+
+    .inv-set-group:hover {
+        border-color: color-mix(in srgb, var(--sig, var(--wf-border-ctl)) 52%, transparent);
+    }
+
+    .inv-set-header:hover {
+        background: color-mix(in srgb, var(--wf-panel-bg) 78%, var(--wf-uncommon) 12%);
+    }
+
+    .inv-set-header:hover .set-title {
+        text-decoration: underline dotted color-mix(in srgb, var(--wf-gold-text) 60%, transparent);
+        text-underline-offset: 2px;
+    }
+
+    .inv-set-header .tracker-link-icon:hover {
+        opacity: 1;
+        transform: scale(1.06);
+    }
+
+    .inv-set-header .market-link-icon:hover {
+        color: var(--wf-gold-text);
+        opacity: 1;
+    }
+
+    .inv-vt-chip:hover {
+        background: color-mix(in srgb, var(--wf-panel-bg) 78%, var(--wf-uncommon) 10%);
+        border-color: color-mix(in srgb, var(--sig, var(--wf-border-ctl)) 55%, transparent);
+    }
+
+    .inv-card-row:hover .inv-card-acts,
+    .inv-card-row:focus-within .inv-card-acts,
+    .inv-vt-chip:hover .inv-card-acts,
+    .inv-vt-chip:focus-within .inv-card-acts {
+        opacity: 1;
+    }
+
+    .inv-card-name:hover {
+        color: var(--wf-gold-text);
+        text-decoration-style: solid;
+        text-decoration-color: var(--wf-gold-text);
+    }
+
+    .inv-card-act:hover {
+        color: var(--wf-gold-text);
+        background: color-mix(in srgb, var(--wf-gold-text) 14%, transparent);
+        border-color: color-mix(in srgb, var(--wf-gold-text) 40%, transparent);
+    }
+}
+
+@container (min-width: 560px) {
+    .inv-card-body {
+        padding: 16px 18px 18px;
+    }
+
+    .inv-card-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 92px 100px 120px 58px;
+        column-gap: 14px;
+        align-items: center;
+    }
+
+    .inv-card-row {
+        grid-template-columns: minmax(0, 1fr) 92px 100px 120px 58px;
+        grid-template-areas: "nm pl sp pr pc";
+        column-gap: 14px;
+        row-gap: 0;
+        padding: 9px 14px 9px 16px;
+    }
+
+    .inv-card-row.is-sell {
+        grid-template-columns: minmax(0, 1fr) 100px 90px 104px;
+        grid-template-areas: "nm sp pr cdw";
+    }
+
+    .inv-card-pl,
+    .inv-card-sp {
+        justify-content: center;
+    }
+
+    .inv-card-cdw {
+        align-self: center;
+    }
+
+    .inv-vt-item {
+        grid-template-columns: 92px 22px minmax(0, 1fr);
+        column-gap: 10px;
+    }
+
+    .inv-vt-item::before {
+        left: calc(92px + 10px + 10px);
+    }
+}
+
+@media (max-width: 600px) {
+    .inv-set-header .header-spark {
+        display: none;
+    }
+
+    .inv-card-tab {
+        padding: 9px 4px;
+        font-size: 0.68rem;
+        letter-spacing: 0.4px;
+        gap: 4px;
+        flex-direction: column;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .loading-blink,
+    .momento-pill,
+    .momento-spark,
+    .inv-set-group,
+    .inv-set-header,
+    .inv-set-header .tracker-link-icon,
+    .inv-set-header .set-title,
+    .inv-set-group.sig-vender::before,
+    .inv-set-group.sig-comprar::before,
+    .inv-set-group.sig-esperar::before,
+    .inv-set-group.inv-set-flash,
+    .inv-card-tab,
+    .inv-card-chip,
+    .inv-card-seg-btn,
+    .inv-card-more,
+    .inv-card-row,
+    .inv-card-name,
+    .inv-card-acts,
+    .inv-card-act,
+    .inv-vt-chip {
+        transition: none;
+        animation: none;
+    }
+
+    .inv-set-group.inv-set-flash {
+        box-shadow: 0 0 0 2px var(--wf-gold-text);
+    }
 }

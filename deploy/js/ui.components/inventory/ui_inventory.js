@@ -606,6 +606,7 @@ document.addEventListener("click", (e) => {
       requestAnimationFrame(() => addCurrentToInv());
       break;
     case "toggle-inv-set":
+      if (e.target.closest(".momento-pill, .momento-spark, a[href]")) return;
       requestAnimationFrame(() => toggleInvSet(data.setid));
       break;
     case "delete-prime-set":

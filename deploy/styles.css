@@ -369,6 +369,10 @@ body {
 }
 
 .wf-toast .toast-close {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   opacity: 0.4;
   font-size: 1.4em;
@@ -377,8 +381,15 @@ body {
   transition: opacity 0.2s;
 }
 
-.wf-toast .toast-close:hover {
+.wf-toast .toast-close:hover,
+.wf-toast .toast-close:focus-visible {
   opacity: 1;
+}
+
+.wf-toast .toast-close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .wf-toast .toast-message {
@@ -1824,7 +1835,7 @@ body.theme-vosfor {
   margin-bottom: 10px;
 }
 
-#inventory-container button:not(.fr-go):not(.fr-head):not(.set-trend-toggle) {
+#inventory-container button:not(.fr-go):not(.fr-head):not(.set-trend-toggle):not(.inv-stale-chip):not(.inv-card-btn) {
   background-color: #15171b;
   color: #888;
   border: 1px solid #444;
@@ -1838,7 +1849,7 @@ body.theme-vosfor {
   text-transform: uppercase;
 }
 
-#inventory-container button:not(.fr-go):not(.fr-head):not(.set-trend-toggle):hover {
+#inventory-container button:not(.fr-go):not(.fr-head):not(.set-trend-toggle):not(.inv-stale-chip):not(.inv-card-btn):hover {
   background-color: var(--wf-blue);
   color: #000;
   border-color: var(--wf-blue);
@@ -4319,13 +4330,13 @@ button[onclick*="importInventory"]:hover {
 
   .inv-set-header {
     display: grid !important;
-    grid-template-columns: auto auto auto auto 1fr auto !important;
+    grid-template-columns: 48px 28px 18px 16px minmax(0, 1fr) !important;
     grid-template-areas:
-      "title title title title title title"
-      "controls icon tracker market . info" !important;
+      "title title title title title"
+      "controls icon tracker market info" !important;
     align-items: center;
-    gap: 8px 10px !important;
-    padding: 10px 12px !important;
+    gap: 6px 4px !important;
+    padding: 8px 8px 8px 10px !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
@@ -4350,24 +4361,50 @@ button[onclick*="importInventory"]:hover {
 
   .inv-set-header .header-controls {
     grid-area: controls;
+    width: 48px;
+  }
+
+  .inv-set-header .header-controls .delete-set-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 0.72rem;
+  }
+
+  .inv-set-header .header-controls .toggle-icon {
+    width: 22px;
   }
 
   .inv-set-header .item-icon-small {
     grid-area: icon;
     margin: 0 !important;
+    width: 28px !important;
+    height: 28px !important;
   }
 
   .inv-set-header .tracker-link-icon {
     grid-area: tracker;
+    margin-left: 0 !important;
+    justify-self: center;
   }
 
   .inv-set-header .market-link-icon {
     grid-area: market;
+    margin-left: 0 !important;
+    justify-self: center;
   }
 
   .inv-set-header .header-info {
     grid-area: info;
+    width: auto;
+    min-width: 0;
+    justify-self: end;
     align-items: flex-end;
+  }
+
+  .inv-set-header .header-fase {
+    grid-column: 1 / -1;
   }
 
   .inv-row-mini {
