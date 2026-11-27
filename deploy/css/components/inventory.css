@@ -466,6 +466,27 @@
     opacity: 1;
 }
 
+.momento-modelo {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.momento-rango {
+    color: var(--wf-forma);
+    font-size: 0.62rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.momento-rango:focus-visible {
+    outline: 2px solid var(--wf-gold-text);
+    outline-offset: 1px;
+    border-radius: 3px;
+}
+
 .momento-pill.conf-alta { border-style: solid; }
 .momento-pill.conf-media { border-style: dashed; }
 .momento-pill.conf-baja { border-style: dotted; }

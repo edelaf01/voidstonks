@@ -115,3 +115,35 @@ export function senalMomento({ nombre, historial, eventos, tendencia, precio, pr
 
     return { ...base, estado: "esperar", confianza: "baja", motivo: null };
 }
+
+let prediccionCarga = null;
+let prediccionDatos = null;
+
+export function cargaPrediccion() {
+    prediccionCarga ??= fetch("assets/json/prediccion_prime.json")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+            prediccionDatos = d?.v === 1 && d.items && Array.isArray(d.niveles) ? d : null;
+            return prediccionDatos;
+        })
+        .catch(() => {
+            prediccionCarga = null;
+            return null;
+        });
+    return prediccionCarga;
+}
+
+export function prediccionDe(slug) {
+    const it = prediccionDatos?.items?.[slug];
+    if (!it) return null;
+    const nivelNombre = prediccionDatos.niveles[it.n];
+    if (!nivelNombre || !(it.p10 > 0) || !(it.p90 >= it.p10)) return null;
+    return {
+        p10: it.p10,
+        p50: it.p50,
+        p90: it.p90,
+        nivel: nivelNombre,
+        horizonte: prediccionDatos.horizonte_dias || 28,
+        error: prediccionDatos.error?.[nivelNombre] || null,
+    };
+}

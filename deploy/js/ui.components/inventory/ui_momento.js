@@ -2,6 +2,7 @@ import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { momentoSets } from "../../services/inventory/inventory.service.js";
+import { prediccionDe } from "../../utils/inventory/momento.js";
 
 const FLECHA = { vender: "▼", comprar: "▲", esperar: "–" };
 const ETIQUETA = { vender: "momentoVender", comprar: "momentoComprar", esperar: "momentoEsperar" };
@@ -32,9 +33,20 @@ export function tipSetsDe(t, f) {
 
 function lineasTooltip(t, f) {
     const lineas = [t[TIP[f.estado]].replace("{motivo}", textoMotivo(t, f))];
-    if (f.estado === "vender") lineas.push(`${t.momentoConfianza}: ${t[CONFIANZA[f.confianza]]}`);
+    if (f.estado === "vender" && !prediccionDe(f.slug)) lineas.push(`${t.momentoConfianza}: ${t[CONFIANZA[f.confianza]]}`);
     lineas.push(f.propio ? tipSetsDe(t, f) : t.momentoNoTienes);
     return lineas;
+}
+
+function rangoHtml(t, p) {
+    const nivel = t[CONFIANZA[p.nivel]];
+    const lineas = [t.momentoRangoTip.replace("{d}", p.horizonte), `${t.momentoConfianza}: ${nivel}`];
+    if (p.error && Number.isFinite(p.error.mediana) && Number.isFinite(p.error.p90)) {
+        lineas.push(t.momentoErrorTip.replace("{nivel}", nivel).replace("{med}", Math.round(p.error.mediana * 100)).replace("{p90}", Math.round(p.error.p90 * 100)));
+    }
+    const rango = t.momentoRango.replace("{a}", p.p10).replace("{b}", p.p90);
+    const aria = `${rango}. ${lineas.join(". ")}`;
+    return `<span class="momento-rango conf-${p.nivel}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}">${escapeHTML(rango)} · ${escapeHTML(nivel)}</span>`;
 }
 
 export function momentoPildoraHtml(f) {
@@ -42,7 +54,10 @@ export function momentoPildoraHtml(f) {
     const lineas = lineasTooltip(t, f);
     const etiqueta = t[ETIQUETA[f.estado]];
     const aria = `${t.momentoTitle}: ${etiqueta}. ${lineas.join(". ")}`;
-    return `<span class="momento-pill conf-${f.confianza || "baja"}${f.propio ? " es-propio" : ""}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}"><span class="momento-flecha" aria-hidden="true">${FLECHA[f.estado]}</span><span class="momento-txt" aria-hidden="true">${escapeHTML(etiqueta)}</span></span>`;
+    const modelo = prediccionDe(f.slug);
+    const conf = modelo ? modelo.nivel : f.confianza || "baja";
+    const pildora = `<span class="momento-pill conf-${conf}${f.propio ? " es-propio" : ""}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}"><span class="momento-flecha" aria-hidden="true">${FLECHA[f.estado]}</span><span class="momento-txt" aria-hidden="true">${escapeHTML(etiqueta)}</span></span>`;
+    return modelo ? `<span class="momento-modelo">${pildora}${rangoHtml(t, modelo)}</span>` : pildora;
 }
 
 export function momentoSparkHtml(f) {

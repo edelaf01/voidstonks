@@ -4,7 +4,7 @@ import { getSlug } from "../../utils/slugs.utils.js";
 import { getPricesBatch, fetchTendencias } from "../../repositories/api.repository.js";
 import { veredictoVenta } from "../../utils/inventory/vender_ya.js";
 import { apuntaPrecios, diaDe, tendencias } from "../../utils/inventory/set_trend.js";
-import { senalMomento } from "../../utils/inventory/momento.js";
+import { senalMomento, cargaPrediccion } from "../../utils/inventory/momento.js";
 import { calculateTotalFullSets } from "../../utils/ui_utils.js";
 
 function collectInventorySlugs() {
@@ -147,7 +147,7 @@ export async function finVarzia(ahora = Date.now()) {
 }
 
 export async function momentoSets(ahora = Date.now()) {
-    const [doc, { historial, eventos }] = await Promise.all([fetchTendencias(), cargaMomentoDatos()]);
+    const [doc, { historial, eventos }] = await Promise.all([fetchTendencias(), cargaMomentoDatos(), cargaPrediccion()]);
     const mapa = doc?.t;
     if (!mapa || !eventos) return [];
     const filas = [];
