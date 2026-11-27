@@ -185,6 +185,7 @@ async function loadAsyncData() {
       manualRelicUpdate();
     }
     renderSetTracker();
+    if (state.activeTab !== "inventory" && state.currentInvView === "parts" && document.getElementById("inventory-container")?.classList.contains("open")) renderPrimeInventory();
 
     await armasDeRiven;
     refreshActiveTab();

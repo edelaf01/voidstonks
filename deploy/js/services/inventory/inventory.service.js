@@ -5,6 +5,7 @@ import { getPricesBatch, fetchTendencias } from "../../repositories/api.reposito
 import { veredictoVenta } from "../../utils/inventory/vender_ya.js";
 import { apuntaPrecios, diaDe, tendencias } from "../../utils/inventory/set_trend.js";
 import { senalMomento } from "../../utils/inventory/momento.js";
+import { calculateTotalFullSets } from "../../utils/ui_utils.js";
 
 function collectInventorySlugs() {
     const itemsToCheck = new Set();
@@ -118,12 +119,21 @@ export async function cicloVault(ahora = Date.now()) {
 }
 
 let momentoDatos = null;
+let momentoCargado = false;
+
+export function momentoListo() {
+    return momentoCargado;
+}
 
 function cargaMomentoDatos() {
     momentoDatos ??= Promise.all([
         fetch("assets/json/historial_sets.json").then((r) => (r.ok ? r.json() : null)),
         fetch("assets/json/eventos_prime.json").then((r) => (r.ok ? r.json() : null)),
-    ]).then(([historial, eventos]) => ({ historial, eventos })).catch(() => {
+    ]).then(([historial, eventos]) => {
+        momentoCargado = !!historial && !!eventos;
+        if (!momentoCargado) momentoDatos = null;
+        return { historial, eventos };
+    }).catch(() => {
         momentoDatos = null;
         return { historial: null, eventos: null };
     });
@@ -149,7 +159,7 @@ export async function momentoSets(ahora = Date.now()) {
         const piezas = parts.reduce((s, p) => s + (Number(state.primeInventory?.[p]) || 0), 0);
         const propio = piezas > 0;
         const senal = senalMomento({ nombre, historial, eventos, tendencia, precio: vivo > 0 ? vivo : tendencia.p, propio, hoy: ahora });
-        if (senal.estado) filas.push({ slug, nombre, propio, piezas, precio: vivo > 0 ? vivo : tendencia.p, p7: tendencia.p7 > 0 ? tendencia.p7 : null, ...senal });
+        if (senal.estado) filas.push({ slug, nombre, propio, piezas, sets: calculateTotalFullSets(nombre), precio: vivo > 0 ? vivo : tendencia.p, p7: tendencia.p7 > 0 ? tendencia.p7 : null, ...senal });
     }
     const orden = { vender: 0, comprar: 1, esperar: 2 };
     return filas.sort((a, b) => orden[a.estado] - orden[b.estado] || b.propio - a.propio || a.nombre.localeCompare(b.nombre));

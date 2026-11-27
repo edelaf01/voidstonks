@@ -654,12 +654,13 @@ html[data-shell="desktop"] #ds-permisos {
 @media (min-width: 900px) {
   html[data-shell="desktop"] #inventory-container .inv-set-header {
     display: grid !important;
-    grid-template-columns: 60px 36px 22px 22px minmax(0, 1fr) 96px !important;
+    grid-template-columns: 84px 36px 22px 22px minmax(0, 1fr) 96px !important;
     grid-template-areas:
       "title title title title title title"
       "controls icon tracker market spark info" !important;
+    grid-template-rows: auto minmax(var(--set-info-h), auto) !important;
     align-items: center;
-    gap: 6px 8px !important;
+    gap: 10px 8px !important;
     padding: 10px 12px !important;
     height: auto !important;
     min-height: 0 !important;
@@ -682,7 +683,9 @@ html[data-shell="desktop"] #ds-permisos {
     font-size: 1rem !important;
   }
 
-  html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls { grid-area: controls; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls { grid-area: controls; flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; width: auto; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls .toggle-icon { order: -1; align-self: center; width: 22px; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls .delete-set-btn { min-width: 24px; height: 24px; padding: 0 !important; margin: 0 !important; }
   html[data-shell="desktop"] #inventory-container .inv-set-header .item-icon-small { grid-area: icon; margin: 0 !important; width: 36px !important; height: 36px !important; }
   html[data-shell="desktop"] #inventory-container .inv-set-header .tracker-link-icon { grid-area: tracker; margin-left: 0 !important; justify-self: center; }
   html[data-shell="desktop"] #inventory-container .inv-set-header .market-link-icon { grid-area: market; margin-left: 0 !important; justify-self: center; }
@@ -692,25 +695,13 @@ html[data-shell="desktop"] #ds-permisos {
 
   @container (max-width: 375px) {
     html[data-shell="desktop"] #inventory-container .inv-set-header {
-      grid-template-columns: 48px 30px 20px 18px minmax(0, 1fr) 92px !important;
-      gap: 6px 4px !important;
+      grid-template-columns: 80px 30px 20px 18px minmax(0, 1fr) 92px !important;
+      gap: 10px 4px !important;
       padding: 8px 10px !important;
     }
 
-    html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls {
-      width: 48px;
-    }
-
     html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls .delete-set-btn {
-      width: 22px;
-      height: 22px;
-      padding: 0 !important;
-      margin: 0 !important;
       font-size: 0.72rem;
-    }
-
-    html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls .toggle-icon {
-      width: 22px;
     }
 
     html[data-shell="desktop"] #inventory-container .inv-set-header .item-icon-small {
@@ -725,7 +716,7 @@ html[data-shell="desktop"] #ds-permisos {
 
   @container (max-width: 305px) {
     html[data-shell="desktop"] #inventory-container .inv-set-header {
-      grid-template-columns: 48px 28px 18px 16px minmax(0, 1fr) !important;
+      grid-template-columns: 80px 28px 18px 16px minmax(0, 1fr) !important;
       grid-template-areas:
         "title title title title title"
         "controls icon tracker market info" !important;

@@ -3,7 +3,7 @@ import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { tendenciaDeSets, cicloVault, finVarzia, momentoSets } from "../../services/inventory/inventory.service.js";
-import { momentoPildoraHtml, momentoSparkHtml, textoMotivo, textoFase } from "./ui_momento.js";
+import { momentoPildoraHtml, momentoSparkHtml, textoMotivo, textoFase, tipSetsDe } from "./ui_momento.js";
 
 const DIA_MS = 86400000;
 const ORDEN_ESTADO = { vender: 0, comprar: 1, esperar: 2 };
@@ -105,11 +105,6 @@ function marketUrlDe(f, nombre) {
     return `https://warframe.market/items/${encodeURIComponent(slug)}`;
 }
 
-function ownTipDe(t, piezas) {
-    const n = piezas || 1;
-    return n === 1 ? t.cardTipPieza : fmt(t.cardTipPiezas, { n });
-}
-
 function priceTipDe(t, ch) {
     if (ch.antes > 0) return fmt(t.cardTipPrecioAntes, { d: dias, a: ch.antes, b: ch.actual });
     if (ch.actual > 0) return fmt(t.cardTipPrecio, { p: ch.actual });
@@ -193,8 +188,8 @@ function setsBodyHtml(t, momento, trMap, c) {
     const chips = FILTROS.map(([k, key, tone, tipKey]) => `<button type="button" class="inv-card-btn inv-card-chip is-tone-${tone}" data-k="f" data-v="${k}" aria-pressed="${filtro === k}" data-tooltip="${escapeHTML(fmt(t[tipKey], { n: c[k] }))}">${k === "all" ? "" : '<span class="inv-card-dot" aria-hidden="true"></span>'}${escapeHTML(t[key])}<span class="inv-card-n">${c[k]}</span></button>`).join("");
     const rows = visibles.map((f) => {
         const ch = cambioDe(f, trMap, dias);
-        const ownTip = f.propio ? ownTipDe(t, f.piezas) : "";
-        const own = f.propio ? `<em class="inv-card-own" tabindex="0" data-tooltip="${escapeHTML(ownTip)}" aria-label="${escapeHTML(ownTip)}">×${f.piezas || 1}</em>` : "";
+        const ownTip = f.propio ? tipSetsDe(t, f) : "";
+        const own = f.propio ? `<em class="inv-card-own" tabindex="0" data-tooltip="${escapeHTML(ownTip)}" aria-label="${escapeHTML(ownTip)}">×${f.sets || 0}</em>` : "";
         const pTip = priceTipDe(t, ch);
         const pAttrs = pTip ? ` tabindex="0" data-tooltip="${escapeHTML(pTip)}" aria-label="${escapeHTML(pTip)}"` : "";
         const price = ch.antes > 0
@@ -242,8 +237,8 @@ function sellLista(momento, ahora) {
 function sellBodyHtml(t, lista, ahora) {
     const visibles = recorta(lista);
     const rows = visibles.map((f) => {
-        const ownTip = f.propio ? ownTipDe(t, f.piezas) : "";
-        const own = f.propio ? `<em class="inv-card-own" tabindex="0" data-tooltip="${escapeHTML(ownTip)}" aria-label="${escapeHTML(ownTip)}">×${f.piezas || 1}</em>` : "";
+        const ownTip = f.propio ? tipSetsDe(t, f) : "";
+        const own = f.propio ? `<em class="inv-card-own" tabindex="0" data-tooltip="${escapeHTML(ownTip)}" aria-label="${escapeHTML(ownTip)}">×${f.sets || 0}</em>` : "";
         const pNum = Math.round(f.precio || 0);
         const pTip = pNum > 0 ? fmt(t.cardTipPrecio, { p: pNum }) : "";
         const pAttrs = pTip ? ` tabindex="0" data-tooltip="${escapeHTML(pTip)}" aria-label="${escapeHTML(pTip)}"` : "";
@@ -310,7 +305,7 @@ function vaultBodyHtml(t, grupos, momentoMap, trMap) {
                 const pTip = fmt(t.cardTipPrecio, { p: pNum });
                 extra = `<em class="inv-vt-price" tabindex="0" data-tooltip="${escapeHTML(pTip)}" aria-label="${escapeHTML(pTip)}">${pNum}<span class="plat-icon-inline" aria-hidden="true"></span></em>`;
             }
-            const ownTip = f.propio ? (m?.piezas ? ownTipDe(t, m.piezas) : t.momentoTienes) : "";
+            const ownTip = f.propio ? (m ? tipSetsDe(t, m) : t.momentoTienes) : "";
             const own = f.propio ? `<em class="inv-card-own" tabindex="0" data-tooltip="${escapeHTML(ownTip)}" aria-label="${escapeHTML(ownTip)}">${escapeHTML(t.cicloTienes)}</em>` : "";
             const acts = setActsHtml(t, nombreBase, marketUrlDe(f, nombreBase));
             return `<span class="inv-vt-chip sig-${sig}">${setNameBtnHtml(t, nombreBase, Boolean(f.propio))}${own}${extra}${acts}</span>`;

@@ -1,7 +1,7 @@
 import { state, saveAppState } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { addToQueue, getPriceValue } from "../../services/market/prices.service.js";
-import { warmupPrices, momentoSets } from "../../services/inventory/inventory.service.js";
+import { warmupPrices, momentoSets, momentoListo } from "../../services/inventory/inventory.service.js";
 import { invCardHtml, wireInvCard } from "./ui_inventory_card.js";
 import { iniciaMomento, momentoSlotsHtml } from "./ui_momento.js";
 import { getSlug } from "../../utils/slugs.utils.js";
@@ -253,16 +253,14 @@ export function renderPrimeInventory() {
   const list = document.getElementById("inventory-list-parts");
   if (!list) return;
 
-  const panel = document.getElementById("inventory-sidebar");
-  if (panel && !panel.classList.contains("open")) return;
-
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
 
   // showEmptyPrime is part of the hash, or toggling it repainted nothing
-  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
+  const baseHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
     + (state.settings?.showEmptyPrime ? "|0s" : "")
     + "|" + Object.keys(state.setsDatabase || {}).length;
+  const newHash = baseHash + (momentoListo() ? "|m" : "");
   if (newHash === lastRenderedHash && list.children.length > 0) {
     setTimeout(updatePrimeTotalValue, 10);
     return;
@@ -402,6 +400,9 @@ export function renderPrimeInventory() {
     }
     const vigente = () => globalThis.primeRenderId === currentRenderId;
     const promesaMomento = momentoSets();
+    promesaMomento.then(() => {
+      if (vigente() && lastRenderedHash === baseHash && momentoListo()) lastRenderedHash = baseHash + "|m";
+    }, () => {});
     wireInvCard(list, promesaMomento, vigente);
     const pintaMomento = iniciaMomento(list, vigente, promesaMomento);
     const momentoSlots = momentoSlotsHtml();

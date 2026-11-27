@@ -19,6 +19,14 @@
     justify-self: end;
 }
 
+.panel-main-header-refined :is(.export-btn, .import-btn) {
+    box-sizing: border-box;
+    height: var(--ctl-h);
+    padding-block: 0 !important;
+    margin-block: 0 !important;
+    border-radius: var(--radius-ctl) !important;
+}
+
 .header-center {
     display: flex;
     align-items: center;
@@ -70,11 +78,12 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    height: 28px;
+    box-sizing: border-box;
+    height: var(--ctl-h);
     margin-left: 12px;
     padding: 0 8px;
     border: 1px solid rgba(255, 68, 68, 0.55) !important;
-    border-radius: 4px;
+    border-radius: var(--radius-ctl);
     color: #ff6b6b;
     font-size: 0.72rem;
     font-weight: 700;
@@ -370,141 +379,6 @@
     }
 }
 
-.set-trend {
-    padding: 8px 10px 10px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 0.8rem;
-}
-
-.set-trend-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
-}
-
-.set-trend-title {
-    flex: 1;
-    color: #888;
-    font-size: 0.7rem;
-    letter-spacing: 1px;
-    font-weight: 800;
-}
-
-.set-trend-toggle {
-    width: 100%;
-    padding: 0;
-    font: inherit;
-    text-align: left;
-    background: none;
-    border: none;
-    cursor: pointer;
-}
-
-.set-trend-arrow {
-    flex-shrink: 0;
-    color: #888;
-    font-size: 0.8rem;
-    transition: transform 0.25s;
-}
-
-.set-trend.collapsed .set-trend-arrow {
-    transform: rotate(-90deg);
-}
-
-.set-trend.collapsed .set-trend-head {
-    margin-bottom: 0;
-}
-
-.set-trend.collapsed .set-trend-list {
-    display: none;
-}
-
-.set-trend-btn {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #888;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 3px;
-    cursor: pointer;
-}
-
-.set-trend-btn[aria-pressed="true"] {
-    color: var(--wf-gold-text);
-    border-color: var(--wf-gold-text);
-}
-
-.set-trend-row {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 3px 0;
-}
-
-.set-trend-name {
-    flex: 1;
-    min-width: 0;
-    color: #ddd;
-}
-
-.set-trend-price {
-    color: #888;
-    font-family: monospace;
-    white-space: nowrap;
-}
-
-.set-trend-pct {
-    min-width: 52px;
-    padding-bottom: 2px;
-    text-align: right;
-    font-weight: 800;
-    font-family: monospace;
-    background: linear-gradient(currentColor, currentColor) right bottom / var(--barra, 0) 2px no-repeat;
-}
-
-.set-trend-row.sube .set-trend-pct { color: var(--wf-green); }
-.set-trend-row.baja .set-trend-pct { color: var(--wf-error); }
-.set-trend-row.igual { opacity: 0.5; }
-.set-trend-row.igual .set-trend-pct { color: #888; }
-:is(.vender-ya, .ciclo-vault) .set-trend-row { flex-wrap: wrap; row-gap: 0; }
-:is(.vender-ya, .ciclo-vault) .set-trend-pct { flex-basis: 100%; text-align: left; font-weight: 600; }
-.vender-ya .vender-ya-set .set-trend-name { color: #fff; font-weight: 700; }
-.vender-ya .vender-ya-pieza :is(.set-trend-name, .set-trend-pct) { padding-left: 12px; }
-.vender-ya-grupo > summary { list-style: none; align-items: center; cursor: pointer; border-radius: 3px; }
-.vender-ya-grupo > summary::-webkit-details-marker { display: none; }
-.vender-ya-grupo > summary::after { content: "\25B8"; color: #888; font-size: 0.7rem; transition: transform 0.15s; }
-.vender-ya-grupo[open] > summary::after { transform: rotate(90deg); }
-.vender-ya-grupo > summary:hover { background: rgba(255, 255, 255, 0.04); }
-.vender-ya-grupo > summary:focus-visible { outline: 1px solid var(--wf-gold-text); outline-offset: 1px; }
-.vender-ya-img { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 3px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
-.vender-ya-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.vender-ya-cuenta { color: #888; font-size: 0.7rem; font-family: monospace; white-space: nowrap; }
-
-.set-trend-list {
-    max-height: 216px;
-    overflow-y: auto;
-    padding-right: 4px;
-    scrollbar-width: thin;
-}
-
-.set-trend-sum {
-    display: flex;
-    gap: 6px;
-    font-size: 0.7rem;
-    font-family: monospace;
-}
-
-.set-trend-sum .sube { color: var(--wf-green); }
-.set-trend-sum .baja { color: var(--wf-error); }
-
-.set-trend-empty {
-    color: #888;
-    line-height: 1.4;
-}
-
 .inv-set-group.sig-vender,
 .inv-card-row.sig-vender,
 .inv-vt-item.sig-vender,
@@ -793,18 +667,38 @@
 
 .inv-card-filters {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-wrap: nowrap;
+    gap: var(--gap-ctl);
+}
+
+@container (max-width: 330px) {
+    .inv-card-filters {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+#prime-inv-search,
+#prime-inv-sort {
+    box-sizing: border-box;
+    height: var(--ctl-h);
+    padding-block: 0 !important;
+    border-radius: var(--radius-ctl);
 }
 
 .inv-card-chip {
     display: inline-flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
     align-items: center;
     gap: 5px;
+    box-sizing: border-box;
+    height: var(--chip-h);
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--wf-border-ctl);
-    border-radius: 14px;
-    padding: 4px 10px;
+    border-radius: var(--radius-chip);
+    padding: 0 8px;
     color: var(--wf-uncommon);
     font-size: 0.74rem;
     font-weight: 600;
@@ -870,7 +764,7 @@
 .inv-card-ctrl {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--gap-ctl);
 }
 
 .inv-card-lab {
@@ -902,6 +796,8 @@
 
 .inv-card-seg {
     display: inline-flex;
+    box-sizing: border-box;
+    height: var(--ctl-h);
     border: 1px solid var(--wf-border-ctl);
     border-radius: var(--radius-ctl);
     overflow: hidden;
@@ -915,7 +811,8 @@
     color: var(--wf-forma);
     font-size: 0.7rem;
     font-weight: 700;
-    padding: 4px 8px;
+    height: 100%;
+    padding: 0 10px;
     letter-spacing: 0.3px;
     white-space: nowrap;
     transition: color 0.15s ease, background-color 0.15s ease;

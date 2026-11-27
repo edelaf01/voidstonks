@@ -22,11 +22,18 @@ export function textoMotivo(t, f) {
     return "";
 }
 
+export function tipSetsDe(t, f) {
+    const sets = f.sets || 0;
+    const piezas = f.piezas || 0;
+    if (sets === 0) return t.cardTipSinSet.replace("{n}", piezas);
+    if (sets === 1) return t.cardTipSet;
+    return t.cardTipSets.replace("{n}", sets);
+}
+
 function lineasTooltip(t, f) {
     const lineas = [t[TIP[f.estado]].replace("{motivo}", textoMotivo(t, f))];
     if (f.estado === "vender") lineas.push(`${t.momentoConfianza}: ${t[CONFIANZA[f.confianza]]}`);
-    if (f.estado === "comprar") lineas.push(t.momentoConfianzaCompra);
-    lineas.push(f.propio ? t.momentoTienes : t.momentoNoTienes);
+    lineas.push(f.propio ? tipSetsDe(t, f) : t.momentoNoTienes);
     return lineas;
 }
 
