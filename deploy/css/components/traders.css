@@ -139,6 +139,15 @@
     margin-left: 3px;
 }
 
+.tr-plat {
+    margin-left: 6px;
+    padding-left: 6px;
+    border-left: 1px solid var(--wf-border-ctl);
+    color: var(--label-color);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .tr-groups {
     display: flex;
     flex-direction: column;
@@ -519,6 +528,23 @@
     color: var(--wf-vaulted);
 }
 
+.tr-set-part.dup {
+    border-color: color-mix(in srgb, var(--tr-accent) 40%, transparent);
+}
+
+.tr-part-dup {
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--tr-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tr-accent) 45%, transparent);
+    color: var(--tr-accent);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 .tr-items--tiles .tr-item.tr-pack {
     display: flex;
     flex-direction: column;
@@ -598,6 +624,21 @@
     white-space: nowrap;
 }
 
+.tr-own {
+    flex-shrink: 0;
+    max-width: 100%;
+    padding: 1px 6px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--wf-green);
+    background: rgba(50, 200, 50, 0.1);
+    border: 1px solid #2a4b2a;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 520px) {
     .tr-items--tiles {
         grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr));
@@ -613,7 +654,8 @@
         padding: 8px;
     }
 
-    .tr-rot-tag {
+    .tr-rot-tag,
+    .tr-own {
         font-size: 0.6rem;
         padding: 1px 5px;
     }

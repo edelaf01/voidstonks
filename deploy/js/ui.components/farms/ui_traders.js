@@ -5,6 +5,9 @@ import { serverNow } from "../../services/server_clock.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { getItemIcon, progresoSets } from "../../utils/ui_utils.js";
 import { farmLinkHtml } from "../../utils/farm_links.js";
+import { applyIcon } from "../../utils/wfm_assets.js";
+import { getPriceValue } from "../../services/market/prices.service.js";
+import { getSlug } from "../../utils/slugs.utils.js";
 
 const API = "https://api.warframestat.us/pc";
 const CACHE_MS = 5 * 60 * 1000;
@@ -116,6 +119,28 @@ function nameKey(s) {
   return String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+const RELIC_REF_RE = /\s*(?:\((?:intact|exceptional|flawless|radiant)\)|\b(?:relic|intact|exceptional|flawless|radiant)\b)/gi;
+
+function relicKey(raw) {
+  return nameKey(String(raw || "").replace(RELIC_REF_RE, ""));
+}
+
+function ownedRelics() {
+  const map = new Map();
+  const inv = state.inventory;
+  if (Array.isArray(inv)) {
+    for (const item of inv) {
+      const isStr = typeof item === "string";
+      const raw = isStr ? item : item?.name;
+      const count = isStr ? 1 : Number(item?.count);
+      if (!raw || !Number.isFinite(count) || count <= 0) continue;
+      const k = relicKey(raw);
+      if (k) map.set(k, (map.get(k) || 0) + count);
+    }
+  }
+  return map;
+}
+
 let catalogueRefs = [];
 let catalogueMap = new Map();
 
@@ -184,6 +209,36 @@ function relicTierHtml(entry) {
   return era ? `<span class="tr-icons"><span class="relic-era-icon tr-era ${RELIC_ERAS[era[1]].toLowerCase()}"></span></span>` : "";
 }
 
+function modIconHtml(entry) {
+  return `<span class="tr-icons"><img class="tr-icon" data-icon-name="${escapeHTML(prettyTraderItem(entry))}" alt="" loading="lazy"></span>`;
+}
+
+function hydrateModIcons(root) {
+  root.querySelectorAll("img[data-icon-name]").forEach((img) => applyIcon(img, img.dataset.iconName));
+}
+
+function hydrateBaroPrices(root, gen, t) {
+  const unit = t?.platPerDucat || "p/d";
+  root.querySelectorAll(".tr-item-cost[data-price-name]").forEach((el) => {
+    const name = el.dataset.priceName;
+    const slug = getSlug(name);
+    if (!slug) return;
+    const ducats = Number(el.dataset.ducats);
+    getPriceValue(name, slug)
+      .then((plat) => {
+        if (gen !== renderGen || !el.isConnected) return;
+        const price = Number(plat);
+        if (!Number.isFinite(price) || price <= 0) return;
+        const span = document.createElement("span");
+        span.className = "tr-plat";
+        const ratio = ducats > 0 ? ` · ${(price / ducats).toFixed(2)} ${escapeHTML(unit)}` : "";
+        span.innerHTML = `${escapeHTML(String(Math.round(price)))}<span class="plat-icon-inline tr-coin"></span>${ratio}`;
+        el.appendChild(span);
+      })
+      .catch(() => {});
+  });
+}
+
 function selfIcon(entry) {
   return [prettyTraderItem(entry)];
 }
@@ -200,6 +255,7 @@ function itemListHtml(items, costLabel, withCredits, opts = {}) {
     return { it, sets, prog, rank };
   });
   if (opts.sets) rows.sort((a, b) => a.rank - b.rank);
+  const relicsOwned = opts.linkKind === "relic" ? ownedRelics() : null;
   return `<ul class="${cls}">${rows
     .map(({ it, sets, prog }) => {
       const costs = [];
@@ -211,10 +267,17 @@ function itemListHtml(items, costLabel, withCredits, opts = {}) {
       const rotTag = opts.rotating?.has(name) ? `<span class="tr-rot-tag">${escapeHTML(t.inRotation || "in rotation")}</span>` : "";
       if (prog?.total) return setItemHtml(name, icons, costs, sets, prog, t, rotTag, opts.linkKind);
       const nameHtml = opts.linkKind ? farmLinkHtml(name, opts.linkKind) : escapeHTML(name);
-      const label = rotTag
-        ? `<span class="tr-name-wrap"><span class="tr-item-name">${nameHtml}</span>${rotTag}</span>`
+      const ownCount = relicsOwned ? relicsOwned.get(relicKey(name)) || 0 : 0;
+      const ownTag = ownCount > 0 ? `<span class="tr-own">${escapeHTML((t.owned || "You own x{n}").replace("{n}", String(ownCount)))}</span>` : "";
+      const tags = `${rotTag}${ownTag}`;
+      const label = tags
+        ? `<span class="tr-name-wrap"><span class="tr-item-name">${nameHtml}</span>${tags}</span>`
         : `<span class="tr-item-name">${nameHtml}</span>`;
-      return `<li class="${itemCls}">${icons || `<span class="tr-icons"></span>`}${label}<span class="tr-item-cost">${costs.join(" · ")}</span></li>`;
+      const priceAttrs =
+        (!opts.coin || opts.coin === "ducats") && it.ducats != null
+          ? ` data-price-name="${escapeHTML(name)}" data-ducats="${escapeHTML(String(it.ducats))}"`
+          : "";
+      return `<li class="${itemCls}">${icons || `<span class="tr-icons"></span>`}${label}<span class="tr-item-cost"${priceAttrs}>${costs.join(" · ")}</span></li>`;
     })
     .join("")}</ul>`;
 }
@@ -239,13 +302,15 @@ function setItemHtml(name, icons, costs, sets, prog, t = TEXTS[state.currentLang
         cab +
         piezas
           .map((p) => {
-            const cls = p.qty >= p.req ? " ok" : p.qty === 0 ? " empty" : "";
+            const extra = p.qty - p.req;
+            const cls = extra > 0 ? " ok dup" : p.qty >= p.req ? " ok" : p.qty === 0 ? " empty" : "";
             const icon = getItemIcon(p.name);
             const img = icon
               ? `<img class="item-icon-mini tr-part-icon" src="${escapeHTML(icon)}" alt="" loading="lazy" onerror="this.remove()">`
               : "";
             const label = p.name.startsWith(`${set} `) ? p.name.slice(set.length + 1) : p.name;
-            return `<li class="tr-set-part${cls}">${img}<span class="tr-part-name">${escapeHTML(label)}</span><span class="tr-part-count">${escapeHTML(`${p.qty}/${p.req}`)}</span></li>`;
+            const dupTag = extra > 0 ? `<span class="tr-part-dup" title="${escapeHTML((t.extraPart || "+{n} extra").replace("{n}", String(extra)))}">+${extra}</span>` : "";
+            return `<li class="tr-set-part${cls}">${img}<span class="tr-part-name">${escapeHTML(label)}</span><span class="tr-part-count">${escapeHTML(`${p.qty}/${p.req}`)}</span>${dupTag}</li>`;
           })
           .join("")
       );
@@ -268,8 +333,12 @@ export function isPrimedMod(entry) {
   return /\/Upgrades\/Mods\//.test(u) && (/Expert$/.test(lastSegment(entry)) || /^Primed /.test(String(entry?.item || "")));
 }
 
+export function isTraderStance(entry) {
+  return /\/MeleeTrees\//.test(String(entry?.uniqueName || ""));
+}
+
 export function isTraderWeapon(entry) {
-  return /^\/Lotus\/(StoreItems\/)?Weapons\//.test(String(entry?.uniqueName || ""));
+  return /^\/Lotus\/(StoreItems\/)?Weapons\//.test(String(entry?.uniqueName || "")) && !isTraderStance(entry);
 }
 
 function isTraderFrame(entry) {
@@ -323,8 +392,9 @@ function baroHtml(baro, t) {
     ? `<div class="tr-timer-label">${escapeHTML(t.leavesIn)}</div>${countdownHtml(baro.expiry)}`
     : `<div class="tr-timer-label">${escapeHTML(t.arrivesIn)}</div>${countdownHtml(baro.activation)}`;
   const groups =
-    groupHtml(t.primedMods, inv.filter(isPrimedMod), t.ducats, true) +
-    groupHtml(t.weapons, inv.filter(isTraderWeapon), t.ducats, true, { linkKind: "weapon" });
+    groupHtml(t.primedMods, inv.filter(isPrimedMod), t.ducats, true, { iconsHtml: modIconHtml }) +
+    groupHtml(t.stances, inv.filter(isTraderStance), t.ducats, true, { iconsHtml: modIconHtml }) +
+    groupHtml(t.weapons, inv.filter(isTraderWeapon), t.ducats, true, { icons: selfIcon, linkKind: "weapon" });
   const body = active
     ? groups || `<div class="tr-empty">${escapeHTML(t.noItems)}</div>`
     : `<div class="tr-meta">${escapeHTML(t.arrives)} ${escapeHTML(formatDate(baro.activation))} · ${escapeHTML(t.leaves)} ${escapeHTML(formatDate(baro.expiry))}</div>`;
@@ -391,6 +461,8 @@ export async function renderTradersTab(force = false, auto = false) {
         <section class="tr-col"><div class="tr-col-title">${escapeHTML(t.varzia)}</div>${varziaHtml(data.vault, t)}</section>
         <section class="tr-col"><div class="tr-col-title">${escapeHTML(t.baro)}</div>${baroHtml(data.baro, t)}</section>
       </div>`;
+    hydrateModIcons(container);
+    hydrateBaroPrices(container, gen, t);
     startTicker();
   } catch {
     if (gen !== renderGen) return;
@@ -410,6 +482,21 @@ export function stopTradersTimers() {
   reloadTimer = null;
 }
 
+export async function resumenTraders() {
+  const { baro, vault } = await loadTraders(false);
+  const now = serverNow();
+  const baroIni = Date.parse(baro?.activation || "");
+  const baroFin = Date.parse(baro?.expiry || "");
+  const baroActivo = Number.isFinite(baroIni) && Number.isFinite(baroFin) && baroIni <= now && now < baroFin;
+  const varziaIni = Date.parse(vault?.activation || "");
+  const varziaFin = Date.parse(vault?.expiry || "");
+  const varziaActivo = Number.isFinite(varziaFin) && now < varziaFin && (!Number.isFinite(varziaIni) || varziaIni <= now);
+  return {
+    baro: { activo: baroActivo, fin: baroActivo ? baro.expiry : null },
+    varzia: { activo: varziaActivo, fin: varziaActivo ? vault.expiry : null },
+  };
+}
+
 async function varziaExpiry() {
   try {
     return (await loadTraders(false))?.vault?.expiry || null;
@@ -418,4 +505,4 @@ async function varziaExpiry() {
   }
 }
 
-exposeGlobals({ retryTraders: () => renderTradersTab(true), varziaExpiry }, "ui.components/farms/ui_traders.js");
+exposeGlobals({ retryTraders: () => renderTradersTab(true), varziaExpiry, resumenTraders }, "ui.components/farms/ui_traders.js");
