@@ -68,11 +68,11 @@ def varzia(trader):
 
 VOID_TRADER = "https://api.warframestat.us/pc/voidTrader?language=en"
 ITEMS = "https://api.warframestat.us/items/search/{}?by=uniqueName&only=uniqueName,name&language=en"
-BUSCA = re.compile(r"^/Lotus/(StoreItems/)?(Weapons|Powersuits)/|/T[1-4]VoidProjection.+Vault[A-Z]")
+BUSCA = re.compile(r"^/Lotus/(StoreItems/)?(Weapons|Powersuits|Upgrades/Mods)/|/T[1-4]VoidProjection.+Vault[A-Z]")
 REFINO = re.compile(r"\s+(Intact|Exceptional|Flawless|Radiant|Relic)$")
 WORLDSTATE = "https://api.warframe.com/cdn/worldState.php"
 EXPORT = "https://content.warframe.com/PublicExport/"
-EXPORTS = ("ExportWeapons", "ExportWarframes", "ExportRelicArcane")
+EXPORTS = ("ExportWeapons", "ExportWarframes", "ExportRelicArcane", "ExportUpgrades")
 
 
 def pide_bytes(url):

@@ -176,6 +176,8 @@ function cuentaSets(filas, trMap) {
 function setsBodyHtml(t, momento, trMap, c) {
     const filtrados = momento.filter((f) => filtro === "all" || (filtro === "own" ? f.propio : f.estado === filtro));
     const ordenados = [...filtrados].sort((a, b) => {
+        const buyDiff = (b.estado === "comprar") - (a.estado === "comprar");
+        if (buyDiff !== 0) return buyDiff;
         const pa = cambioDe(a, trMap, dias).pct;
         const pb = cambioDe(b, trMap, dias).pct;
         const absDiff = Math.abs(pb ?? -1) - Math.abs(pa ?? -1);

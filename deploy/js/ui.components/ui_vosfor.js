@@ -37,7 +37,8 @@ import {
     realizableR0,
     realizableMax,
     PACK_COST,
-    arcaneUnitValue
+    arcaneUnitValue,
+    fetchArcanePricesUpdated
 } from "../services/vosfor.service.js?v=2.7";
 
 const platIcon = (size = 13) => `<img src="assets/relic_contents/platinum.webp" class="vos-icon vos-icon--${size}" alt="pl">`;
@@ -100,6 +101,8 @@ function sellSpeedChip(avgVolume) {
 }
 
 let vosData = null;
+let arcanePricesUpdated = null;
+let arcanePricesReq = null;
 let expandedPack = null;
 let expandAllPacks = false;
 let unsubscribe = null;
@@ -300,7 +303,7 @@ const SINDICATO_ICONOS = {
     HexSyndicate: { icon: "syn_hex.webp", wikiIcon: "HexSyndicate" },
     QuillsSyndicate: { icon: "pack_plains_of_eidolon.webp", wikiIcon: "EidolonArcaneCollection" },
     SolarisSyndicate: { icon: "pack_fortuna.webp", wikiIcon: "SolarisArcaneCollection" },
-    VoxSyndicate: { icon: "ruvox.webp", wikiIcon: "VoxSolarisArcaneCollection" },
+    VoxSyndicate: { icon: "syn_vox.webp", wikiIcon: "VoxSolarisArcaneCollection" },
     ZarimanSyndicate: { icon: "pack_zariman_and_lua.webp", wikiIcon: "HoldfastsArcaneCollection" },
 };
 
@@ -1786,12 +1789,40 @@ function toolBodyHtml(key, bestRate = bestPackRate(vosData)) {
     return "";
 }
 
+function loadArcanePricesUpdated() {
+    if (arcanePricesReq) return arcanePricesReq;
+    arcanePricesReq = fetchArcanePricesUpdated().then((u) => {
+        if (!u || !Number.isFinite(Date.parse(u))) return;
+        arcanePricesUpdated = u;
+        if (document.getElementById("vosfor-packs")) renderVosforPacks();
+    });
+    return arcanePricesReq;
+}
+
+export function ensureArcanePricesUpdated() {
+    return loadArcanePricesUpdated();
+}
+
+export function getArcanePricesAge() {
+    const ts = arcanePricesUpdated ? Date.parse(arcanePricesUpdated) : NaN;
+    return Number.isFinite(ts) ? Math.max(0, Date.now() - ts) : null;
+}
+
+function staleArcanePricesHtml(t) {
+    const ts = arcanePricesUpdated ? Date.parse(arcanePricesUpdated) : NaN;
+    const age = Number.isFinite(ts) ? Date.now() - ts : 0;
+    if (age <= 172800000) return "";
+    const days = Math.floor(age / 86400000);
+    return `<div class="vos-data-note vos-data-stale">${escapeHTML((t.staleArcanePrices || "").replace("{n}", String(days)))}</div>`;
+}
+
 export function renderVosforPacks() {
     const packsBox = document.getElementById("vosfor-packs");
     if (!packsBox || !vosData) {
         renderVosforTab();
         return;
     }
+    loadArcanePricesUpdated();
     const t = vosT();
     const bestRate = bestPackRate(vosData);
 
@@ -1810,7 +1841,7 @@ export function renderVosforPacks() {
           ${packsSorted.map((p) => packCard(p, bestRate)).join("")}
           ${othersCard}
         </div>
-        <div class="vos-data-note">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>`;
+        <div class="vos-data-note">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>${staleArcanePricesHtml(t)}`;
 
     initJadeCosmicEasterEgg();
 }

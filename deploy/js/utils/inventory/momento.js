@@ -6,22 +6,26 @@ export const MOMENTO = {
     ANUNCIO_DIAS: 14,
     VENDER_DIAS: 7,
     COMPRAR_DESDE_DIAS: 21,
-    COMPRAR_HASTA_DIAS: 56,
-    COMPRA_DESCUENTO: 0.2,
+    COMPRAR_HASTA_DIAS: 84,
+    COMPRA_DESCUENTO: 0.15,
+    COMPRA_ALTA_DIAS: 35,
+    COMPRA_ALTA_DESCUENTO: 0.2,
     PREVIO_SEMANAS: 3,
     SERIE_SEMANAS: 10,
     VARZIA_DIAS: 28,
     HUECO_MIN_DIAS: 60,
     HUECO_ALTO_DIAS: 120,
-    ESTABLE_DIAS: 14,
-    MANTENER_DIAS: 56,
+    MANTENER_DIAS: 84,
     RANGO_PASOS: 4,
     RANGO_MIN_MUESTRAS: 12,
     RANGO_VENTANA_SEMANAS: 104,
+    CAIDA_HORIZONTE_DIAS: 84,
+    CAIDA_MIN_MUESTRAS: 30,
 };
 
 const DIA_MS = 86400000;
 const cacheRangoGlobal = new WeakMap();
+const cacheCaida = new WeakMap();
 
 function ms(fecha) {
     const t = Date.parse(fecha || "");
@@ -106,6 +110,66 @@ export function rangoDe(puntos, actual, historial) {
     return { ref: actual, p10, p50, p90, nivel, horizonte: MOMENTO.RANGO_PASOS * 7 };
 }
 
+export function caidaTipica(historial, eventos) {
+    if (!historial || typeof historial !== "object") return null;
+    const prev = cacheCaida.get(historial);
+    if (prev && prev.eventos === eventos) return prev.valor;
+    const unvaults = eventos?._unvaults;
+    if (!unvaults || typeof unvaults !== "object") {
+        cacheCaida.set(historial, { eventos, valor: null });
+        return null;
+    }
+    const caidas = [];
+    const dias = [];
+    const horizonteMs = MOMENTO.CAIDA_HORIZONTE_DIAS * DIA_MS;
+    for (const [nombre, ventanas] of Object.entries(unvaults)) {
+        if (!Array.isArray(ventanas) || !ventanas.length) continue;
+        const puntos = serieDe(historial, nombre);
+        if (!puntos.length) continue;
+        const finSerie = ms(puntos[puntos.length - 1].d);
+        if (finSerie === null) continue;
+        const inicios = ventanas
+            .map((v) => ({ fecha: v?.[0], t: ms(v?.[0]) }))
+            .filter((v) => v.t !== null)
+            .sort((a, b) => a.t - b.t);
+        for (let i = 0; i < inicios.length; i++) {
+            const { fecha, t } = inicios[i];
+            const horizonte = t + horizonteMs;
+            if (i + 1 < inicios.length && inicios[i + 1].t < horizonte) continue;
+            if (finSerie < horizonte) continue;
+            const base = precioPrevio(puntos, fecha);
+            if (base < MOMENTO.PRECIO_MIN) continue;
+            let minP = Infinity;
+            let minT = null;
+            for (const pt of puntos) {
+                const tp = ms(pt.d);
+                if (tp === null || tp < t || tp > horizonte) continue;
+                if (pt.p < minP) {
+                    minP = pt.p;
+                    minT = tp;
+                }
+            }
+            if (minT === null) continue;
+            caidas.push(Math.max(0, 1 - minP / base));
+            dias.push((minT - t) / DIA_MS);
+        }
+    }
+    const n = caidas.length;
+    let valor = null;
+    if (n >= MOMENTO.CAIDA_MIN_MUESTRAS) {
+        caidas.sort((a, b) => a - b);
+        dias.sort((a, b) => a - b);
+        valor = {
+            p50: Math.round(cuantil(caidas, 0.5) * 100),
+            p90: Math.round(cuantil(caidas, 0.9) * 100),
+            dias: Math.round(cuantil(dias, 0.5)),
+            n,
+        };
+    }
+    cacheCaida.set(historial, { eventos, valor });
+    return valor;
+}
+
 function eventosDe(nombre, eventos, vc) {
     const lista = [];
     for (const [inicio, fin] of eventos?._unvaults?.[nombre] || []) lista.push({ tipo: "unvault", inicio, fin });
@@ -157,16 +221,6 @@ function huecoAnterior(lista, inicio) {
     return prev === null ? null : (ini - prev) / DIA_MS;
 }
 
-function estable(puntos, actual, hoy) {
-    const limite = hoy - MOMENTO.ESTABLE_DIAS * DIA_MS;
-    let ref = null;
-    for (const x of puntos) {
-        const t = ms(x.d);
-        if (t !== null && t <= limite) ref = x.p;
-    }
-    return ref === null || actual >= ref * 0.97;
-}
-
 export function senalMomento({ nombre, historial, eventos, tendencia, precio, propio = false, hoy = Date.now() } = {}) {
     const vacio = { estado: null, confianza: null, fase: null, motivo: null, evento: null, serie: [], rango: null };
     if (!nombre) return vacio;
@@ -184,7 +238,8 @@ export function senalMomento({ nombre, historial, eventos, tendencia, precio, pr
     const fase = activo?.fase || "sinEvento";
     const evento = activo ? { tipo: activo.evento.tipo, inicio: activo.evento.inicio, fin: activo.evento.fin || null } : null;
     const rango = rangoDe(puntos, actual, historial);
-    const base = { fase, evento, serie, rango };
+    const caida = fase === "compra" || fase === "espera" ? caidaTipica(historial, eventos) : null;
+    const base = { fase, evento, serie, rango, ...(caida ? { caida } : {}) };
 
     const enVentana = fase === "anuncio" || fase === "semana1";
     if (enVentana) {
@@ -199,8 +254,10 @@ export function senalMomento({ nombre, historial, eventos, tendencia, precio, pr
     if (fase === "compra") {
         const previo = precioPrevio(puntos, activo.evento.inicio);
         const minOk = activo.evento.tipo !== "varzia" || actual >= MOMENTO.VENDER_PRECIO_MIN;
-        if (previo > 0 && actual > 0 && minOk && actual <= previo * (1 - MOMENTO.COMPRA_DESCUENTO) && estable(puntos, actual, hoy)) {
-            return { ...base, estado: "comprar", confianza: "media", motivo: "bajoPrevio", pct: Math.round((1 - actual / previo) * 100), mantener: MOMENTO.MANTENER_DIAS };
+        if (previo > 0 && actual >= MOMENTO.PRECIO_MIN && minOk && actual <= previo * (1 - MOMENTO.COMPRA_DESCUENTO)) {
+            const dias = (hoy - ms(activo.evento.inicio)) / DIA_MS;
+            const confianza = dias >= MOMENTO.COMPRA_ALTA_DIAS && actual <= previo * (1 - MOMENTO.COMPRA_ALTA_DESCUENTO) ? "alta" : "media";
+            return { ...base, estado: "comprar", confianza, motivo: "bajoPrevio", pct: Math.round((1 - actual / previo) * 100), mantener: MOMENTO.MANTENER_DIAS };
         }
     }
 

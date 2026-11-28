@@ -86,7 +86,7 @@
   <link rel="stylesheet" href="css/components/scanner.css?v=1.3" />
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=4.1" />
-  <link rel="stylesheet" href="css/components/header.css?v=1.3" />
+  <link rel="stylesheet" href="css/components/header.css?v=1.4" />
   <link rel="stylesheet" href="styles.css?v=4.2" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
   <link rel="stylesheet" href="css/components/riven-module.css?v=1.1" />
@@ -94,7 +94,8 @@
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.9" />
   <link rel="stylesheet" href="css/components/orders.css?v=1.6" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
-  <link rel="stylesheet" href="css/components/traders.css?v=4.1" />
+  <link rel="stylesheet" href="css/components/traders.css?v=4.3" />
+  <link rel="stylesheet" href="css/components/hoy.css?v=1.0" />
   <link rel="stylesheet" href="css/components/ui-kit.css?v=4.1" />
   <link rel="stylesheet" href="css/components/deeplinks.css?v=1.0" />
   <link rel="stylesheet" href="css/components/swipe.css?v=1.0" />
@@ -491,6 +492,7 @@
       Optimización de Farm y Mercado
     </div>
     <div class="header-controls">
+      <span id="data-freshness-chip" class="data-fresh-chip hidden"></span>
       <a href="guide.html" class="header-guide-cta" id="txt-header-guide-cta"
         title="Guía paso a paso / Step-by-step guide">
         <span class="guide-cta-icon">📖</span>
@@ -676,6 +678,7 @@
       </div>
 
       <div id="mode-relic">
+        <section id="hoy-card" class="hoy-card"></section>
         <div class="form-group">
           <label>
             <span id="lbl-relic-name">Nombre de Reliquia</span>

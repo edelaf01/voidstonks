@@ -7,7 +7,13 @@ import pandas as pd
 
 HIST_SERIES = os.environ.get("VOIDSTONKS_HIST_SERIES", "history_series.json")
 MIN_VENTA = 40
+MIN_SALTO = 20
 POP_MIN = 2.0
+RATIO_VOLATIL = 3.0
+PREFIJOS_FAMILIA = (
+    "dex", "kuva", "coda", "prisma", "tenet", "mk1",
+    "vaykor", "synoid", "secura", "rakta", "telos", "sancti",
+)
 
 
 def _pop_de(p):
@@ -27,8 +33,7 @@ def _prima_de(p):
     return None if abs(r - respaldo) < 0.006 else r
 
 
-def _fechas_weekly(series):
-    # de publication detected when 379-401 weapons change official_median at once
+def _tandas_weekly(series):
     _cambios = {}
     for _serie in series.values():
         _sv = sorted([p for p in _serie if (p.get("official_median") or 0) > 0],
@@ -36,7 +41,35 @@ def _fechas_weekly(series):
         for _a, _b in zip(_sv, _sv[1:]):
             if _a["official_median"] != _b["official_median"]:
                 _cambios[_b["date"]] = _cambios.get(_b["date"], 0) + 1
-    return sorted(f for f, n in _cambios.items() if n >= 50)
+    fechas = sorted(f for f, n in _cambios.items() if n >= 50)
+    tandas = []
+    for f in fechas:
+        if tandas and (pd.Timestamp(f) - pd.Timestamp(tandas[-1][1])).days <= 1:
+            tandas[-1] = (tandas[-1][0], f)
+        else:
+            tandas.append((f, f))
+    return tandas
+
+
+def _fechas_weekly(series):
+    return [fin for _, fin in _tandas_weekly(series)]
+
+
+def _familia(arma):
+    partes = str(arma or "").strip().lower().replace("-", " ").split()
+    while len(partes) > 1 and partes[0] in PREFIJOS_FAMILIA:
+        partes.pop(0)
+    return " ".join(partes)
+
+
+def _dedup_familia(eventos):
+    mejor = {}
+    for e in eventos:
+        k = _familia(e.get("arma"))
+        clave = (abs(e.get("pct") or 0), e.get("fecha") or "", -len(str(e.get("arma") or "")))
+        if k not in mejor or clave > mejor[k][0]:
+            mejor[k] = (clave, e)
+    return [e for _, e in mejor.values()]
 
 
 def _sin_variantes(firmas):
@@ -57,8 +90,10 @@ def _generar_curiosidades(path_series, top=40, dias_max=None):
         print(f"[WARN] curiosidades: no se pudo leer {path_series}: {e}")
         return []
 
-    VENTANA = 7
-    _publicaciones = _fechas_weekly(series)
+    tandas = _tandas_weekly(series)
+    if not tandas:
+        return []
+    _publicaciones = [fin for _, fin in tandas]
 
     def _tras_publicacion(fecha):
         previas = [f for f in _publicaciones if f <= fecha]
@@ -74,42 +109,70 @@ def _generar_curiosidades(path_series, top=40, dias_max=None):
         _corte = str((pd.Timestamp(_ultima) - pd.Timedelta(days=_dias)).date())
     eventos = []
     for arma, serie in series.items():
-        s = [p for p in serie if (p.get("official_median") or 0) > 0]
-        if len(s) < VENTANA + 3:
+        s = sorted([p for p in serie if (p.get("official_median") or 0) > 0],
+                   key=lambda p: p.get("date", ""))
+        if not s:
             continue
-        s.sort(key=lambda p: p.get("date", ""))
-        for i in range(VENTANA, len(s)):
-            hoy, ayer, previos = s[i], s[i - 1], s[i - VENTANA:i]
-            if _corte and (hoy.get("date") or "") < _corte:
+        pre = [p for p in s if p.get("date", "") < tandas[0][0]]
+        slots = [(pre[-1]["date"], pre[-1])] if pre else []
+        for idx, (ini, fin) in enumerate(tandas):
+            sig = tandas[idx + 1][0] if idx + 1 < len(tandas) else None
+            pts = [p for p in s if p.get("date", "") >= ini and (sig is None or p.get("date", "") < sig)]
+            if pts:
+                p_sel = next((x for x in pts if x.get("date") == fin), pts[-1])
+                slots.append((fin, p_sel))
+            else:
+                slots.append(None)
+        if len(slots) < 5:
+            continue
+        for k in range(4, len(slots)):
+            ventana = slots[k - 4:k + 1]
+            if any(x is None for x in ventana):
                 continue
-            pop = _pop_de(hoy)
-            if pop < POP_MIN or float(np.median([_pop_de(p) for p in previos])) < POP_MIN:
+            fecha = ventana[4][0]
+            if _corte and fecha < _corte:
                 continue
-            cur_v = float(hoy["official_median"])
-            base_v = float(np.median([p["official_median"] for p in previos]))
-            vol = float(hoy.get("volatility_index") or 0)
-            base_vol = float(np.median([p.get("volatility_index") or 0 for p in previos]))
+            previas = [p for _, p in ventana[:3]]
+            actuales = [p for _, p in ventana[3:]]
+            pop = _pop_de(actuales[-1])
+            if pop < POP_MIN or float(np.median([_pop_de(p) for p in previas])) < POP_MIN:
+                continue
+            actuales_v = [float(p["official_median"]) for p in actuales]
+            previas_v = [float(p["official_median"]) for p in previas]
+            cur_v = float(np.median(actuales_v))
+            base_v = float(np.median(previas_v))
+            if base_v < MIN_VENTA or cur_v < MIN_VENTA:
+                continue
+            vol = float(np.median([p.get("volatility_index") or 0 for p in actuales]))
+            base_vol = float(np.median([p.get("volatility_index") or 0 for p in previas]))
+            cambio_signo = (actuales_v[0] - base_v) * (actuales_v[1] - base_v) < 0
+            rango_alto = max(actuales_v) / min(actuales_v) > RATIO_VOLATIL
 
             tipo = None
-            # de publishes weekly: +0% without publication means no data rather than no movement
-            if cur_v != ayer["official_median"] and base_v >= MIN_VENTA and cur_v >= MIN_VENTA:
-                pct = (cur_v - base_v) / base_v * 100
-                if abs(pct) >= 25:
+            pct = (cur_v - base_v) / base_v * 100
+            if abs(cur_v - base_v) >= MIN_SALTO and abs(pct) >= 25:
+                if cambio_signo or rango_alto:
+                    tipo = "volatil"
+                else:
                     tipo = "subida_venta" if pct > 0 else "bajada_venta"
-                    v_de, v_a = round(base_v), round(cur_v)
-            if (not tipo and vol != float(ayer.get("volatility_index") or 0)
-                    and cur_v >= MIN_VENTA and 0 < base_vol <= 6 and base_vol != 3.0 and vol >= 15):
+                v_de, v_a = round(base_v), round(cur_v)
+            elif rango_alto:
+                tipo = "volatil"
+                v_de, v_a = round(min(actuales_v)), round(max(actuales_v))
+                pct = (v_a - v_de) / v_de * 100
+            elif (vol != float(previas[-1].get("volatility_index") or 0)
+                    and 0 < base_vol <= 6 and base_vol != 3.0 and vol >= 15):
                 tipo = "volatil"
                 pct = (vol - base_vol) / max(base_vol, 0.1) * 100
                 v_de, v_a = round(base_vol / 10, 2), round(vol / 10, 1)
             if not tipo:
                 continue
 
-            _desde = s[i - VENTANA].get("date")
-            _pub, _tras = _tras_publicacion(hoy.get("date") or "")
+            _desde = ventana[2][0]
+            _pub, _tras = _tras_publicacion(fecha)
             eventos.append({
                 "weekly": _pub, "dias_tras_weekly": _tras,
-                "arma": arma, "fecha": hoy.get("date"), "desde": _desde, "tipo": tipo,
+                "arma": arma, "fecha": fecha, "desde": _desde, "tipo": tipo,
                 "pct": round(pct), "de": v_de, "a": v_a,
                 "pop_de": round(pop, 1), "fuente": "de",
             })
@@ -117,15 +180,13 @@ def _generar_curiosidades(path_series, top=40, dias_max=None):
     mejor = {}
     for e in eventos:
         k = e["arma"]
-        peso = (e["tipo"] != "volatil", e["fecha"], abs(e["pct"]))
-        if k not in mejor or peso > (mejor[k]["tipo"] != "volatil", mejor[k]["fecha"],
+        peso = (e["fecha"], e["tipo"] != "volatil", abs(e["pct"]))
+        if k not in mejor or peso > (mejor[k]["fecha"], mejor[k]["tipo"] != "volatil",
                                      abs(mejor[k]["pct"])):
             mejor[k] = e
-    quedan = _sin_variantes({a: (e["tipo"], e["fecha"], e["de"], e["a"]) for a, e in mejor.items()})
     por_tipo = {}
-    for e in mejor.values():
-        if e["arma"] in quedan:
-            por_tipo.setdefault(e["tipo"], []).append(e)
+    for e in _dedup_familia(mejor.values()):
+        por_tipo.setdefault(e["tipo"], []).append(e)
     for lista in por_tipo.values():
         lista.sort(key=lambda e: (e["fecha"], abs(e["pct"])), reverse=True)
     orden = sorted(por_tipo, key=lambda t: (por_tipo[t][0]["fecha"], t), reverse=True)
@@ -139,11 +200,10 @@ def _generar_curiosidades(path_series, top=40, dias_max=None):
 
 
 def _generar_globales(series):
-    publicaciones = _fechas_weekly(series)
-    if not publicaciones:
+    tandas = _tandas_weekly(series)
+    if not tandas:
         return []
-    ult = publicaciones[-1]
-    tanda = [f for f in publicaciones if (pd.Timestamp(ult) - pd.Timestamp(f)).days <= 2]
+    inicio, ult = tandas[-1]
     out = []
     cambios, fiables = {}, {}
     for arma, serie in series.items():
@@ -151,8 +211,8 @@ def _generar_globales(series):
                    key=lambda p: p.get("date", ""))
         if not s:
             continue
-        antes = [p["official_median"] for p in s if p.get("date", "") < tanda[0]]
-        tras = [p["official_median"] for p in s if tanda[0] <= p.get("date", "") <= ult]
+        antes = [p["official_median"] for p in s if p.get("date", "") < inicio]
+        tras = [p["official_median"] for p in s if inicio <= p.get("date", "") <= ult]
         if antes and tras and tras[-1] != antes[-1]:
             cambios[arma] = (antes[-1], tras[-1])
         if s[-1]["official_median"] >= MIN_VENTA and _pop_de(s[-1]) >= POP_MIN:
@@ -162,8 +222,8 @@ def _generar_globales(series):
     bajan = len(quedan) - suben
     if suben + bajan:
         g = {"tipo": "global_weekly", "fecha": ult, "suben": suben, "bajan": bajan}
-        if tanda[0] != ult:
-            g["desde"] = tanda[0]
+        if inicio != ult:
+            g["desde"] = inicio
         out.append(g)
     fiables = {a: fiables[a] for a in _sin_variantes(
         {a: (p["official_median"], p.get("rerolled_premium_ratio")) for a, p in fiables.items()})}
@@ -219,16 +279,9 @@ def _fusiona_historial(nuevos, ruta, dias_historial, tope):
     frescos = [e for e in fusion if (e.get("fecha") or "") >= frontera]
     archivo = [e for e in fusion if (e.get("fecha") or "") < frontera]
     archivo.sort(key=_nota, reverse=True)
-    salida = frescos + archivo[:ARCHIVO_MAX]
+    salida = _dedup_familia(frescos + archivo[:ARCHIVO_MAX])
     salida.sort(key=lambda e: e.get("fecha") or "", reverse=True)
-    vistas, unicos = set(), []
-    for e in salida:
-        arma = str(e.get("arma") or "").lower()
-        if arma in vistas:
-            continue
-        vistas.add(arma)
-        unicos.append(e)
-    return unicos[:tope]
+    return salida[:tope]
 
 
 if __name__ == "__main__":

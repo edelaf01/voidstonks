@@ -1,5 +1,5 @@
 import { dbHelper } from "../repositories/storage.repository.js";
-import { getArcaneBatch } from "../repositories/api.repository.js";
+import { getArcaneBatch, getArcaneUpdated } from "../repositories/api.repository.js";
 import { copiesForMaxRank } from "../utils/vosfor_math.js";
 
 const CACHE_TTL = 1 * 60 * 60 * 1000;
@@ -103,6 +103,17 @@ export async function requestAllPacks(force = false) {
     const data = await loadVosforData();
     for (const pack of data.packs) await requestPackStats(pack, false, force);
     if (data.others?.length) await requestPackStats(othersPack(data), false, force);
+}
+
+export async function fetchArcanePricesUpdated() {
+    try {
+        const res = await getArcaneUpdated();
+        if (!res.ok) return null;
+        const d = await res.json();
+        return typeof d?.updated === "string" && d.updated ? d.updated : null;
+    } catch {
+        return null;
+    }
 }
 
 async function pump() {

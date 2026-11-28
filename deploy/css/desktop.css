@@ -367,7 +367,7 @@ html[data-shell="desktop"] #ds-permisos {
     gap: 8px;
   }
 
-  html[data-shell="desktop"] .site-header :is(.header-guide-cta, .scan-history-btn, .scanner-toggle-btn, .lang-trigger) {
+  html[data-shell="desktop"] .site-header :is(.data-fresh-chip, .header-guide-cta, .scan-history-btn, .scanner-toggle-btn, .lang-trigger) {
     height: 32px;
     box-sizing: border-box;
     min-width: 0;

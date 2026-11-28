@@ -482,12 +482,17 @@
 }
 
 .momento-ve,
-.momento-bajo {
+.momento-bajo,
+.momento-caida {
     color: var(--wf-forma);
     font-size: 0.62rem;
     line-height: 1;
     white-space: nowrap;
     cursor: help;
+}
+
+.momento-caida {
+    white-space: normal;
 }
 
 .momento-rango:focus-visible {

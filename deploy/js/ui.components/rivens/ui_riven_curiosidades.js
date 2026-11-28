@@ -43,7 +43,7 @@ function _curioNombre(bruto) {
 
 export function _curioFrase(e, isEs) {
   const arma = `<span class="curio-arma">${escapeHTML(_curioNombre(e.arma))}</span>`;
-  const num = (v) => `${v > 0 ? "+" : ""}${v}%`;
+  const num = (v) => (v > 300 ? ">+300 %" : v < -300 ? ">-300 %" : `${v > 0 ? "+" : ""}${v}%`);
   const pinta = (v) => `<span class="${v > 0 ? "curio-sube" : "curio-baja"}">${num(v)}</span>`;
   switch (e.tipo) {
     case "global_weekly":
@@ -72,20 +72,48 @@ export function _curioFrase(e, isEs) {
   }
 }
 
+function _curioFechaPartes(iso, isEs) {
+  const [y, m, d] = String(iso || "").slice(0, 10).split("-");
+  const M = isEs
+    ? ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const mes = M[Number(m) - 1] || "";
+  const dia = Number(d);
+  if (!mes || !Number.isFinite(dia) || dia <= 0) return null;
+  return { y: /^\d{4}$/.test(y) ? y : "", d: String(dia), m: mes };
+}
+
+function _curioFecha(iso, isEs) {
+  const p = _curioFechaPartes(iso, isEs);
+  if (!p) return "";
+  return p.y ? `${p.d} ${p.m} ${p.y}` : `${p.d} ${p.m}`;
+}
+
 function _curioTramo(e, isEs) {
   if (!e.fecha) return "";
-  const mes = (iso) => {
-    const [, m, d] = String(iso).split("-");
-    const M = isEs
-      ? ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
-      : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return { d: String(Number(d)), m: M[Number(m) - 1] || "" };
-  };
-  const b = mes(e.fecha);
-  if (!e.desde) return `<span class="curio-fecha">${b.d} ${b.m}</span>`;
-  const a = mes(e.desde);
+  const b = _curioFechaPartes(e.fecha, isEs);
+  if (!b) return "";
+  if (!e.desde) return `<span class="curio-fecha">${escapeHTML(`${b.d} ${b.m}`)}</span>`;
+  const a = _curioFechaPartes(e.desde, isEs);
+  if (!a) return `<span class="curio-fecha">${escapeHTML(`${b.d} ${b.m}`)}</span>`;
   const txt = a.m === b.m ? `${a.d}-${b.d} ${b.m}` : `${a.d} ${a.m} - ${b.d} ${b.m}`;
   return `<span class="curio-fecha">${escapeHTML(txt)}</span>`;
+}
+
+function _curioPop(e, isEs) {
+  if (!Number.isFinite(e.pop_de) || e.pop_de < 4) return "";
+  const txt = isEs ? "Arma muy usada (meta)" : "Widely used weapon (meta)";
+  const tip = isEs ? "popularidad de rerolls en DE" : "reroll popularity in DE";
+  return `<span class="curio-chip curio-t-pincha" title="${tip}">${txt}</span>`;
+}
+
+function _curioNota(isEs) {
+  const base = isEs
+    ? "Mediana de venta sin ciclar según la tabla semanal de DE. Cambia de una semana a otra y con pocas ventas puede ser ruido; no es una predicción."
+    : "Median sale of uncycled rivens from DE's weekly table. It can move week to week and with few sales it may be noise; it is not a forecast.";
+  const fecha = _curioFecha(_curioCache?.serie_hasta, isEs) || _curioFecha(_curioCache?.generado, isEs);
+  if (!fecha) return base;
+  return isEs ? `${base} Datos del ${fecha}.` : `${base} Data from ${fecha}.`;
 }
 
 function _curioLista() {
@@ -136,7 +164,7 @@ function _pintaCurio(cont, lista, idx) {
   const meta = CURIO_TIPOS[e.tipo] || { es: "Mercado", en: "Market", clase: "curio-t-global" };
   cuerpo.querySelector(".curio-cab").innerHTML =
     `<span class="curio-chip ${meta.clase}">${isEs ? meta.es : meta.en}</span>`
-    + _curioTramo(e, isEs) + _curioWeekly(e, isEs);
+    + _curioPop(e, isEs) + _curioTramo(e, isEs) + _curioWeekly(e, isEs);
   const frase = cuerpo.querySelector(".curio-frase");
   frase.innerHTML = _curioFrase(e, isEs);
   frase.classList.remove("curio-entra");
@@ -160,6 +188,15 @@ function _pintaCurio(cont, lista, idx) {
     dots.innerHTML = Array.from({ length: n },
       (_, i) => `<span class="${i === (idx % lista.length) % n ? "on" : ""}"></span>`).join("");
   }
+  const host = cont.querySelector(".curio-viewport") || cont;
+  let nota = host.querySelector("[data-curio-nota]");
+  if (!nota) {
+    nota = document.createElement("div");
+    nota.className = "curio-nota";
+    nota.setAttribute("data-curio-nota", "");
+    host.appendChild(nota);
+  }
+  nota.textContent = _curioNota(isEs);
 }
 
 async function _cargaCurios() {

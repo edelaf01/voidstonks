@@ -782,11 +782,21 @@
 }
 .curio-dots span.on { background: #c59afc; }
 
+.curio-nota {
+  margin-top: 6px;
+  padding-left: 56px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--label-color);
+  opacity: 0.85;
+}
+
 @media (max-width: 640px) {
   .curio-nav { width: 30px; }
   .curio-icon { width: 36px; height: 36px; }
   .curio-frase { font-size: 13.5px; }
   .curio-dots { padding-left: 46px; }
+  .curio-nota { padding-left: 46px; }
 }
 
 .curio-weekly {

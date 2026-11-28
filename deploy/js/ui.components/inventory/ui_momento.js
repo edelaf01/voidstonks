@@ -34,21 +34,22 @@ function lineasTooltip(t, f) {
     const lineas = [t[TIP[f.estado]].replace("{motivo}", textoMotivo(t, f))];
     if (f.estado === "vender") lineas.push(`${t.momentoConfianzaEvento}: ${t[CONFIANZA[f.confianza]]}`);
     if (f.estado === "comprar" && f.mantener) lineas.push(t.momentoMantener.replace("{d}", f.mantener));
+    if (f.rango) {
+        const p = f.rango;
+        const rango = t.momentoRango.replace("{a}", p.p10).replace("{b}", p.p90);
+        lineas.push(precioBajoPrediccion(p) ? rango : `${rango} · ${t[CONFIANZA[p.nivel]]}`);
+    }
+    if ((f.fase === "compra" || f.fase === "espera") && f.caida) {
+        const c = f.caida;
+        lineas.push(t.momentoCaidaTipica.replace("{p50}", c.p50).replace("{dias}", c.dias).replace("{n}", c.n));
+    }
     lineas.push(f.propio ? tipSetsDe(t, f) : t.momentoNoTienes);
     return lineas;
 }
 
 function rangoHtml(t, p) {
-    const rango = t.momentoRango.replace("{a}", p.p10).replace("{b}", p.p90);
-    if (precioBajoPrediccion(p)) {
-        const tip = [t.momentoRangoTip.replace("{d}", p.horizonte)];
-        const aria = `${rango}. ${t.momentoPrecioBajo}. ${t.momentoPrecioBajoTip}`;
-        return `<span class="momento-rango" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(tip.join("\n"))}">${escapeHTML(rango)}</span><span class="momento-bajo" tabindex="0" role="img" aria-label="${escapeHTML(t.momentoPrecioBajo)}" data-tooltip="${escapeHTML(t.momentoPrecioBajoTip)}">${escapeHTML(t.momentoPrecioBajo)}</span>`;
-    }
-    const nivel = t[CONFIANZA[p.nivel]];
-    const lineas = [t.momentoRangoTip.replace("{d}", p.horizonte), `${t.momentoConfianza}: ${nivel}`];
-    const aria = `${rango}. ${lineas.join(". ")}`;
-    return `<span class="momento-rango conf-${p.nivel}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}">${escapeHTML(rango)} · ${escapeHTML(nivel)}</span>`;
+    if (!precioBajoPrediccion(p)) return "";
+    return `<span class="momento-bajo" tabindex="0" role="img" aria-label="${escapeHTML(t.momentoPrecioBajo)}" data-tooltip="${escapeHTML(t.momentoPrecioBajoTip)}">${escapeHTML(t.momentoPrecioBajo)}</span>`;
 }
 
 function vaultHtml(t, f) {
@@ -64,13 +65,12 @@ export function momentoPildoraHtml(f) {
     const lineas = lineasTooltip(t, f);
     const etiqueta = t[ETIQUETA[f.estado]];
     const aria = `${t.momentoTitle}: ${etiqueta}. ${lineas.join(". ")}`;
-    const modelo = f.rango;
     const conf = f.confianza || "baja";
     const pildora = `<span class="momento-pill conf-${conf}${f.propio ? " es-propio" : ""}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}"><span class="momento-flecha" aria-hidden="true">${FLECHA[f.estado]}</span><span class="momento-txt" aria-hidden="true">${escapeHTML(etiqueta)}</span></span>`;
-    const mantener = f.estado === "comprar" && f.mantener ? `<span class="momento-ve">${escapeHTML(t.momentoMantener.replace("{d}", f.mantener))}</span>` : "";
+    const bajo = f.rango ? rangoHtml(t, f.rango) : "";
     const ve = vaultHtml(t, f);
-    if (!modelo && !ve && !mantener) return pildora;
-    return `<span class="momento-modelo">${pildora}${mantener}${modelo ? rangoHtml(t, modelo) : ""}${ve}</span>`;
+    if (!bajo && !ve) return pildora;
+    return `<span class="momento-modelo">${pildora}${bajo}${ve}</span>`;
 }
 
 export function momentoSparkHtml(f) {

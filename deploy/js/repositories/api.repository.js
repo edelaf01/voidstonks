@@ -190,6 +190,10 @@ export async function getArcaneBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=arcane_batch&q=${chunk.join(",")}`, { timeout: 25000 });
 }
 
+export async function getArcaneUpdated() {
+    return fetchRotating(`type=arcane_updated&b=${Math.floor(Date.now() / 3600000)}`);
+}
+
 export async function getActiveBounties(force = false) {
     return fetchRotating("type=active_bounties&v=2", { force });
 }
