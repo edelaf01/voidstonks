@@ -2,7 +2,7 @@ import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { momentoSets } from "../../services/inventory/inventory.service.js";
-import { prediccionDe } from "../../utils/inventory/momento.js";
+import { precioBajoPrediccion, vaultEstimadoDe } from "../../utils/inventory/momento.js";
 
 const FLECHA = { vender: "▼", comprar: "▲", esperar: "–" };
 const ETIQUETA = { vender: "momentoVender", comprar: "momentoComprar", esperar: "momentoEsperar" };
@@ -18,7 +18,6 @@ export function textoFase(t, f) {
 
 export function textoMotivo(t, f) {
     if (f.motivo === "ventana") return textoFase(t, f);
-    if (f.motivo === "caida") return t.momentoMotivoCaida.replace("{pct}", f.pct);
     if (f.motivo === "bajoPrevio") return t.momentoMotivoBajoPrevio.replace("{pct}", f.pct);
     return "";
 }
@@ -33,20 +32,31 @@ export function tipSetsDe(t, f) {
 
 function lineasTooltip(t, f) {
     const lineas = [t[TIP[f.estado]].replace("{motivo}", textoMotivo(t, f))];
-    if (f.estado === "vender" && !prediccionDe(f.slug)) lineas.push(`${t.momentoConfianza}: ${t[CONFIANZA[f.confianza]]}`);
+    if (f.estado === "vender") lineas.push(`${t.momentoConfianzaEvento}: ${t[CONFIANZA[f.confianza]]}`);
+    if (f.estado === "comprar" && f.mantener) lineas.push(t.momentoMantener.replace("{d}", f.mantener));
     lineas.push(f.propio ? tipSetsDe(t, f) : t.momentoNoTienes);
     return lineas;
 }
 
 function rangoHtml(t, p) {
+    const rango = t.momentoRango.replace("{a}", p.p10).replace("{b}", p.p90);
+    if (precioBajoPrediccion(p)) {
+        const tip = [t.momentoRangoTip.replace("{d}", p.horizonte)];
+        const aria = `${rango}. ${t.momentoPrecioBajo}. ${t.momentoPrecioBajoTip}`;
+        return `<span class="momento-rango" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(tip.join("\n"))}">${escapeHTML(rango)}</span><span class="momento-bajo" tabindex="0" role="img" aria-label="${escapeHTML(t.momentoPrecioBajo)}" data-tooltip="${escapeHTML(t.momentoPrecioBajoTip)}">${escapeHTML(t.momentoPrecioBajo)}</span>`;
+    }
     const nivel = t[CONFIANZA[p.nivel]];
     const lineas = [t.momentoRangoTip.replace("{d}", p.horizonte), `${t.momentoConfianza}: ${nivel}`];
-    if (p.error && Number.isFinite(p.error.mediana) && Number.isFinite(p.error.p90)) {
-        lineas.push(t.momentoErrorTip.replace("{nivel}", nivel).replace("{med}", Math.round(p.error.mediana * 100)).replace("{p90}", Math.round(p.error.p90 * 100)));
-    }
-    const rango = t.momentoRango.replace("{a}", p.p10).replace("{b}", p.p90);
     const aria = `${rango}. ${lineas.join(". ")}`;
     return `<span class="momento-rango conf-${p.nivel}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}">${escapeHTML(rango)} · ${escapeHTML(nivel)}</span>`;
+}
+
+function vaultHtml(t, f) {
+    if (!f.slug || !f.slug.endsWith("_set")) return "";
+    const fecha = vaultEstimadoDe(f.slug);
+    if (!fecha) return "";
+    const texto = t.momentoVaultEstimado.replace("{fecha}", fecha);
+    return `<span class="momento-ve" tabindex="0" role="img" aria-label="${escapeHTML(`${texto}. ${t.momentoVaultEstimadoTip}`)}" data-tooltip="${escapeHTML(t.momentoVaultEstimadoTip)}">${escapeHTML(texto)}</span>`;
 }
 
 export function momentoPildoraHtml(f) {
@@ -54,10 +64,13 @@ export function momentoPildoraHtml(f) {
     const lineas = lineasTooltip(t, f);
     const etiqueta = t[ETIQUETA[f.estado]];
     const aria = `${t.momentoTitle}: ${etiqueta}. ${lineas.join(". ")}`;
-    const modelo = prediccionDe(f.slug);
-    const conf = modelo ? modelo.nivel : f.confianza || "baja";
+    const modelo = f.rango;
+    const conf = f.confianza || "baja";
     const pildora = `<span class="momento-pill conf-${conf}${f.propio ? " es-propio" : ""}" tabindex="0" role="img" aria-label="${escapeHTML(aria)}" data-tooltip="${escapeHTML(lineas.join("\n"))}"><span class="momento-flecha" aria-hidden="true">${FLECHA[f.estado]}</span><span class="momento-txt" aria-hidden="true">${escapeHTML(etiqueta)}</span></span>`;
-    return modelo ? `<span class="momento-modelo">${pildora}${rangoHtml(t, modelo)}</span>` : pildora;
+    const mantener = f.estado === "comprar" && f.mantener ? `<span class="momento-ve">${escapeHTML(t.momentoMantener.replace("{d}", f.mantener))}</span>` : "";
+    const ve = vaultHtml(t, f);
+    if (!modelo && !ve && !mantener) return pildora;
+    return `<span class="momento-modelo">${pildora}${mantener}${modelo ? rangoHtml(t, modelo) : ""}${ve}</span>`;
 }
 
 export function momentoSparkHtml(f) {

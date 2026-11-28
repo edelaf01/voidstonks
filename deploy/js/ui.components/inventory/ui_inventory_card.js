@@ -118,13 +118,11 @@ function pctTipDe(t, ch) {
 }
 
 function sellTipDe(t, f, d) {
+    if (d === null) return "";
     const evento = t[EVENTO_KEY[f.evento?.tipo]] || t.momentoEventoVarzia;
-    if (d !== null) {
-        if (f.fase === "anuncio") return d === 0 ? fmt(t.cardTipVentanaAnuncioHoy, { evento }) : fmt(t.cardTipVentanaAnuncio, { d, evento });
-        if (f.fase === "semana1") return d === 0 ? fmt(t.cardTipVentanaSemana1Hoy, { evento }) : fmt(t.cardTipVentanaSemana1, { d, evento });
-        return d === 0 ? t.cardVaultHoy : fmt(t.cardDiasFinAria, { d });
-    }
-    return fmt(t.cardTipCaida, { pct: Number.isFinite(f.pct) ? f.pct : 0 });
+    if (f.fase === "anuncio") return d === 0 ? fmt(t.cardTipVentanaAnuncioHoy, { evento }) : fmt(t.cardTipVentanaAnuncio, { d, evento });
+    if (f.fase === "semana1") return d === 0 ? fmt(t.cardTipVentanaSemana1Hoy, { evento }) : fmt(t.cardTipVentanaSemana1, { d, evento });
+    return d === 0 ? t.cardVaultHoy : fmt(t.cardDiasFinAria, { d });
 }
 
 function setNameBtnHtml(t, nombre, propio) {
@@ -214,14 +212,11 @@ function setsBodyHtml(t, momento, trMap, c) {
 
 function sellBadgeHtml(t, f, ahora) {
     const d = diasVentana(f, ahora);
+    if (d === null) return "";
     const tip = sellTipDe(t, f, d);
-    if (d !== null) {
-        const cl = d <= 3 ? "is-soon" : d <= 7 ? "is-mid" : "is-far";
-        const txt = d === 0 ? t.cardVaultHoy : fmt(t.cardDiasFin, { d });
-        return `<span class="inv-card-cd ${cl}" tabindex="0" data-tooltip="${escapeHTML(tip)}" aria-label="${escapeHTML(tip)}"><b>${escapeHTML(txt)}</b></span>`;
-    }
-    const p = Number.isFinite(f.pct) ? f.pct : 0;
-    return `<span class="inv-card-cd is-far" tabindex="0" data-tooltip="${escapeHTML(tip)}" aria-label="${escapeHTML(tip)}"><b>−${p}%</b><span>${escapeHTML(t.cardPeriodo7)}</span></span>`;
+    const cl = d <= 3 ? "is-soon" : d <= 7 ? "is-mid" : "is-far";
+    const txt = d === 0 ? t.cardVaultHoy : fmt(t.cardDiasFin, { d });
+    return `<span class="inv-card-cd ${cl}" tabindex="0" data-tooltip="${escapeHTML(tip)}" aria-label="${escapeHTML(tip)}"><b>${escapeHTML(txt)}</b></span>`;
 }
 
 function sellLista(momento, ahora) {

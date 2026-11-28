@@ -481,6 +481,15 @@
     cursor: help;
 }
 
+.momento-ve,
+.momento-bajo {
+    color: var(--wf-forma);
+    font-size: 0.62rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: help;
+}
+
 .momento-rango:focus-visible {
     outline: 2px solid var(--wf-gold-text);
     outline-offset: 1px;
