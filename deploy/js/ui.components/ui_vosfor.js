@@ -303,7 +303,7 @@ const SINDICATO_ICONOS = {
     HexSyndicate: { icon: "syn_hex.webp", wikiIcon: "HexSyndicate" },
     QuillsSyndicate: { icon: "pack_plains_of_eidolon.webp", wikiIcon: "EidolonArcaneCollection" },
     SolarisSyndicate: { icon: "pack_fortuna.webp", wikiIcon: "SolarisArcaneCollection" },
-    VoxSyndicate: { icon: "ruvox.webp", wikiIcon: "VoxSolarisArcaneCollection" },
+    VoxSyndicate: { icon: "syn_vox.webp", wikiIcon: "VoxSolarisArcaneCollection" },
     ZarimanSyndicate: { icon: "pack_zariman_and_lua.webp", wikiIcon: "HoldfastsArcaneCollection" },
 };
 
