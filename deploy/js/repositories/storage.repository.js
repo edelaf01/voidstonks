@@ -104,6 +104,7 @@ const SNAPSHOT_TTL = 60 * 60 * 1000;
 let snapshotPromise = null;
 let snapshotHasta = 0;
 let snapshotAnterior = {};
+let snapshotTimestamp = null;
 
 function applySnapshot(prices) {
     if (!prices) return;
@@ -117,6 +118,7 @@ async function loadPriceSnapshot() {
     try {
         const cached = await dbHelper.get(SNAPSHOT_KEY);
         if (cached && Date.now() - cached.time < SNAPSHOT_TTL) {
+            if (typeof cached.t === "number" && Number.isFinite(cached.t)) snapshotTimestamp = cached.t;
             applySnapshot(cached.p);
             return cached.p;
         }
@@ -129,12 +131,18 @@ async function loadPriceSnapshot() {
         if (!res.ok) return;
         const doc = await res.json();
         if (!doc?.p || !Object.keys(doc.p).length) return;
+        const t = typeof doc.t === "number" && Number.isFinite(doc.t) ? doc.t : null;
+        if (t !== null) snapshotTimestamp = t;
         applySnapshot(doc.p);
-        await dbHelper.set(SNAPSHOT_KEY, { time: Date.now(), p: doc.p });
+        await dbHelper.set(SNAPSHOT_KEY, { time: Date.now(), t, p: doc.p });
         return doc.p;
     } catch (e) {
         console.warn("Snapshot de precios no disponible:", e);
     }
+}
+
+export function getSnapshotAge() {
+    return snapshotTimestamp === null ? null : Math.max(0, Date.now() - snapshotTimestamp);
 }
 
 export function ensurePriceSnapshot(ahora = Date.now()) {

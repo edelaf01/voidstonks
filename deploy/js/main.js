@@ -53,6 +53,8 @@ import { esEscritorio } from "./utils/shell.js";
 import { initSwipeNav } from "./utils/swipe_nav.js";
 import { initPalette } from "./ui.components/ui_palette.js";
 import { initTutorial } from "./ui.components/ui_tutorial.js";
+import { initDataFreshness } from "./ui.components/ui_data_freshness.js";
+import { initHoy } from "./ui.components/ui_hoy.js";
 import { aplicarHashInicial } from "./utils/deeplinks.js";
 import { initFarmLinks } from "./utils/farm_links.js";
 
@@ -96,6 +98,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSwipeNav();
   initPalette();
   initTutorial();
+  initDataFreshness();
+  initHoy();
   initFarmLinks();
 
   if (state.activeTab === "lfg") initLFGPresets();

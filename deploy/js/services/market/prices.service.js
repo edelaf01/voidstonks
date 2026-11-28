@@ -5,4 +5,5 @@ export {
     addToQueue,
     preloadPricesToMemory,
     ensurePriceSnapshot,
+    getSnapshotAge,
 } from "../../repositories/storage.repository.js";

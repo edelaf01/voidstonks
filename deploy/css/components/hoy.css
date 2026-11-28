@@ -1,0 +1,128 @@
+.hoy-card {
+  --hoy-accent: var(--active-theme-color, var(--wf-blue));
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: var(--wf-card);
+  border: 1px solid var(--wf-border-ctl);
+  border-left: 3px solid var(--hoy-accent);
+  border-radius: var(--radius-box);
+}
+
+.hoy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hoy-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--label-color);
+}
+
+.hoy-chev {
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--label-color);
+  border-bottom: 2px solid var(--label-color);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.hoy-card.is-collapsed .hoy-chev {
+  transform: rotate(-45deg);
+}
+
+.hoy-body {
+  margin-top: 8px;
+}
+
+.hoy-body.hidden {
+  display: none;
+}
+
+.hoy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hoy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--wf-border-box);
+}
+
+.hoy-row:last-child {
+  border-bottom: none;
+}
+
+.hoy-text {
+  min-width: 0;
+  flex: 1;
+  line-height: 1.35;
+}
+
+.hoy-link {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--hoy-accent);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--wf-border-ctl);
+  border-radius: var(--radius-ctl, 4px);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .hoy-link:hover {
+    border-color: var(--hoy-accent);
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.hoy-empty {
+  font-size: 0.8rem;
+  color: var(--label-color);
+  padding: 2px 0;
+}
+
+.hoy-foot {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--wf-border-box);
+  font-size: 0.72rem;
+  color: var(--label-color);
+}
+
+.hoy-foot--warn {
+  color: var(--wf-gold-text, #c5a856);
+}
+
+@media (max-width: 600px) {
+  .hoy-card {
+    padding: 9px 11px;
+  }
+
+  .hoy-row {
+    font-size: 0.78rem;
+    gap: 8px;
+  }
+}
