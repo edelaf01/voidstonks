@@ -19,6 +19,7 @@ import {
 import { TEXTS, DROP_CHANCES } from "../../config.js";
 import { escapeHTML } from "../ui_components.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
+import { farmLinkHtml } from "../../utils/farm_links.js";
 import { initSesionesFarmeo, leeSesiones, minutosDeReliquia } from "../../services/farms/sesiones_farmeo.service.js";
 
 const texts = () => FARM_ROUTES_TEXTS[state.currentLang === "es" ? "es" : "en"];
@@ -335,8 +336,11 @@ function sesionesHtml(t) {
     const media = minutos > 0 ? Math.round((plat / minutos) * 60) : null;
     const filas = recientes.map((s) => {
         const hora = Number.isFinite(s.inicio) ? new Date(s.inicio).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-        const nombre = [s.reliquia, s.mision].filter(Boolean).join(" · ") || hora;
-        return `<div class="fr-part"><span class="fr-dim">${escapeHTML(hora)}</span> ${escapeHTML(nombre)}`
+        const partes = [];
+        if (s.reliquia) partes.push(farmLinkHtml(s.reliquia, "relic"));
+        if (s.mision) partes.push(escapeHTML(s.mision));
+        const nombreHtml = partes.join(" · ") || escapeHTML(hora);
+        return `<div class="fr-part"><span class="fr-dim">${escapeHTML(hora)}</span> ${nombreHtml}`
             + ` <span class="fr-value">${Math.round(s.plat || 0)}<span class="plat-icon-inline"></span> · ${s.minutos} ${t.mins}</span></div>`;
     }).join("");
     return `<div class="fr-set"><div class="fr-set-head"><span class="fr-set-name">${escapeHTML(t.sessionsTitle)}</span>`

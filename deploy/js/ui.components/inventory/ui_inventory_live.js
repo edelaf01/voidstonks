@@ -127,7 +127,10 @@ function refreshStaleChip() {
   chip.disabled = n === 0;
 
   const count = chip.querySelector(".inv-chip-count");
-  if (count) count.textContent = String(n);
+  if (count) {
+    count.textContent = n > 0 ? String(n) : "";
+    count.hidden = n === 0;
+  }
 
   const label = document.getElementById("inv-stale-label");
   if (label) label.textContent = (n === 0 ? t.staleChipWatching : t.staleChip) || label.textContent;

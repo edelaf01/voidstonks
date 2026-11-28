@@ -1,127 +1,299 @@
+#vosfor-content,
 .vosfor-container {
+    --vos-best: var(--wf-green);
+    --vos-accent: var(--vosfor-accent-text);
+    --vos-muted: var(--wf-forma);
+    --vos-warn: var(--wf-rare);
+    --vos-err: var(--wf-error);
+    --vos-sig-sell: var(--wf-green);
+    --vos-sig-dissolve: var(--vosfor-accent-text);
+    --vos-sig-even: var(--wf-forma);
+    --vos-text: #e0e0e0;
+    --vos-bright: #ffffff;
+    --vos-dim: #aaaaaa;
+    --vos-faint: #888888;
+    --vos-trade: var(--wf-gold-text);
+    --vos-liquid: #7ecbff;
+    --vos-medal-gold: #ffd76e;
+    --vos-medal-silver: #dcdcdc;
+    --vos-medal-bronze: #e8a87c;
+    --vos-jade: #ff3344;
+    --vos-jade-soft: #ffb3c1;
+    --vos-jade-cyan: #00f0ff;
+    --vos-surface: #111115;
+    --vos-surface-deep: #0f1113;
+    --vos-track: #333333;
+    --vos-hover-bg: color-mix(in srgb, var(--vos-accent) 14%, var(--vos-surface));
+    --vos-panel-bg: color-mix(in srgb, var(--vos-surface) 84%, transparent);
+    --vos-bar-bg: color-mix(in srgb, var(--vos-surface-deep) 80%, transparent);
+    --vos-row-bg: color-mix(in srgb, var(--vos-surface) 88%, var(--vos-muted) 12%);
+    --vos-skel: color-mix(in srgb, var(--vos-row-bg) 76%, var(--vos-muted) 24%);
+    --vos-skel-card-h: 4.7rem;
+    --vos-skel-line-h: 3.8rem;
+    --vos-skel-item-h: 3.6rem;
+    --vos-skel-page-h: 24rem;
+    --vos-border: color-mix(in srgb, var(--vos-accent) 24%, transparent);
+    --vos-border-ctl: color-mix(in srgb, var(--vos-muted) 32%, transparent);
+    --vos-accent-soft: color-mix(in srgb, var(--vos-accent) 12%, transparent);
+    --vos-amber: rgb(224 176 64);
+    --vos-coral: rgb(255 136 102);
+    --vos-rare-chip: rgb(232 200 138);
+    --vos-common-chip: rgb(184 148 108);
+    --vos-uncommon-hdr: rgb(170 204 255);
+    --vos-common-hdr: rgb(205 205 205);
+    --vos-sub-list: rgb(204 204 204);
+    --vos-err-soft: rgb(255 136 136);
+}
+
+.vosfor-container {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     gap: 14px;
     width: 100%;
-    color: #e0e0e0;
+    color: var(--vos-text);
     font-size: 1em;
 }
 
-.vos-tools {
+.vos-tabs {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    background: var(--vos-bar-bg);
+    border: 1px solid var(--vos-border);
+    border-radius: var(--radius-ctl);
+    overflow: hidden;
+}
+
+.vos-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: var(--ctl-h);
     display: flex;
     flex-direction: column;
-    gap: 8px;
-}
-
-.vos-tool {
-    background: rgba(0, 0, 0, 0.22);
-    border: 1px solid color-mix(in srgb, var(--active-theme-color) 16%, transparent);
-    border-radius: 10px;
-    overflow: hidden;
-    transition: border-color 0.18s;
-}
-
-.vos-tool.open {
-    border-color: color-mix(in srgb, var(--active-theme-color) 40%, transparent);
-}
-
-.vos-tool.open .vos-tool-arrow {
-    transform: rotate(180deg);
-}
-
-.vos-tool-head {
-    display: flex;
     align-items: center;
-    gap: 11px;
-    width: 100%;
-    padding: 11px 13px;
-    font: inherit;
-    text-align: left;
-    color: inherit;
-    background: none;
-    border: none;
+    justify-content: center;
+    gap: 4px;
+    padding: 9px 4px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--vos-muted);
+    font-family: inherit;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    text-align: center;
+    box-sizing: border-box;
     cursor: pointer;
-    transition: background 0.18s;
+    overflow-wrap: anywhere;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.vos-tool-head:hover {
-    background: color-mix(in srgb, var(--active-theme-color) 6%, transparent);
+.vos-tab[aria-selected="true"] {
+    color: var(--vos-accent);
+    border-bottom-color: var(--vos-accent);
+    background: var(--vos-accent-soft);
 }
 
-.vos-tool-icon {
+.vos-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.vos-panel[hidden] {
+    display: none;
+}
+
+.vos-seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    box-sizing: border-box;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    max-width: 100%;
+    border: 1px solid var(--vos-border-ctl);
+    border-radius: var(--radius-ctl);
+    overflow: hidden;
+    background: var(--vos-bar-bg);
+}
+
+.vos-seg.vos-seg--wrap {
+    flex-wrap: wrap;
+    height: auto;
+}
+
+.vos-seg.vos-seg--fill {
+    display: flex;
+    width: 100%;
+}
+
+.vos-seg.vos-seg--fill .vos-seg-btn {
+    flex: 1 1 0;
+}
+
+.vos-seg-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.vos-seg-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    width: 26px;
-    font-size: 1.05rem;
-    line-height: 1;
+    gap: var(--gap-ctl);
+    flex: 1 1 auto;
+    min-width: 0;
+    height: var(--ctl-h);
+    padding: 0 10px;
+    border: 0;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vos-border-ctl) 45%, transparent);
+    background: transparent;
+    color: var(--vos-muted);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-.vos-tool-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1 1 auto;
+.vos-seg-btn[aria-pressed="true"] {
+    color: var(--vos-accent);
+    background: var(--vos-accent-soft);
+    box-shadow: inset 0 -2px 0 var(--vos-accent);
+}
+
+.vos-seg.vos-seg--wrap .vos-seg-btn,
+.vos-seg-row .vos-seg-btn {
+    height: var(--ctl-h);
+}
+
+.vos-sub-desc {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--vos-dim);
+}
+
+.vos-sub-body {
     min-width: 0;
 }
 
-.vos-tool-title {
-    font-size: 0.92rem;
-    font-weight: 800;
-    letter-spacing: 0.3px;
-    color: #f0e0ff;
-}
-
-.vos-tool-sub {
+button.vos-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-ctl);
+    min-width: 0;
+    max-width: 100%;
+    height: var(--chip-h);
+    padding: 0 9px;
+    box-sizing: border-box;
+    border: 1px solid var(--vos-border-ctl);
+    border-radius: var(--radius-chip);
+    background: var(--vos-bar-bg);
+    color: var(--vos-text);
+    font-family: inherit;
     font-size: 0.74rem;
-    line-height: 1.35;
-    color: #9a92a5;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.vos-tool-arrow {
-    flex-shrink: 0;
-    font-size: 0.9rem;
-    color: #b39ddb;
-    transition: transform 0.25s;
+button.vos-chip[aria-pressed="true"] {
+    color: var(--vos-accent);
+    border-color: var(--vos-accent);
+    background: var(--vos-accent-soft);
 }
 
-.vos-tool-body {
-    display: grid;
-    grid-template-rows: 0fr;
+.vos-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-ctl);
+    box-sizing: border-box;
+    height: var(--ctl-h);
+    max-width: 100%;
+    padding: 0 12px;
+    border: 1px solid var(--vos-border-ctl);
+    border-radius: var(--radius-ctl);
+    background: var(--vos-bar-bg);
+    color: var(--vos-text);
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+#arcaneInput,
+#sellArcInput,
+#targetArcInput,
+#sindFiltroInput {
+    min-width: 0;
+}
+
+.vos-bd {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.2;
+    padding: 2px 6px;
+    border-radius: var(--radius-chip);
+    border: 1px solid var(--vos-border-ctl);
+    color: var(--vos-text);
+    text-transform: none;
+    white-space: nowrap;
     overflow: hidden;
-    transition: grid-template-rows 0.28s ease;
+    text-overflow: ellipsis;
 }
 
-.vos-tool-body > * {
-    min-height: 0;
+.vos-bd--legendary {
+    color: var(--vos-medal-gold);
+    border-color: color-mix(in srgb, var(--vos-medal-gold) 45%, transparent);
+    background: color-mix(in srgb, var(--vos-medal-gold) 10%, transparent);
 }
 
-.vos-tool.open .vos-tool-body {
-    grid-template-rows: 1fr;
+.vos-bd--rare {
+    color: var(--vos-rare-chip);
+    border-color: color-mix(in srgb, var(--vos-rare-chip) 40%, transparent);
+    background: color-mix(in srgb, var(--vos-rare-chip) 8%, transparent);
 }
 
-.vos-tool:not(.open) .vos-tool-body > * {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    /* visibility instead of display:none so the expand transition is not cut */
-    visibility: hidden;
+.vos-bd--uncommon {
+    color: var(--vos-medal-silver);
+    border-color: color-mix(in srgb, var(--vos-medal-silver) 35%, transparent);
+    background: color-mix(in srgb, var(--vos-medal-silver) 8%, transparent);
 }
 
-.vos-tool.open .vos-tool-body > * {
-    visibility: visible;
-    transition: visibility 0s linear 0.28s;
-}
-
-/* !important and [style] beat the inline border/shadow some widgets carry */
-.vos-tool-body .vosfor-target-widget,
-.vos-tool-body .vosfor-pix-widget,
-.vos-tool-body .vosfor-ranking-section {
-    margin: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
+.vos-bd--common {
+    color: var(--vos-common-chip);
+    border-color: color-mix(in srgb, var(--vos-common-chip) 40%, transparent);
+    background: color-mix(in srgb, var(--vos-common-chip) 8%, transparent);
 }
 
 .vosfor-pix-widget {
@@ -184,26 +356,17 @@
     flex-shrink: 0;
     background: rgba(0, 0, 0, 0.5);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 40%, transparent);
-    border-radius: 10px;
+    border-radius: var(--radius-box);
     padding: 4px;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
     transition: transform 0.18s ease, border-color 0.18s ease;
 }
 
-.vosfor-arc-img:hover {
-    transform: scale(1.18);
-    border-color: color-mix(in srgb, var(--active-theme-color) 90%, transparent);
-}
-
-.vosfor-pack-img {
-    width: 70px;
-    height: 70px;
-    object-fit: contain;
-    flex-shrink: 0;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--active-theme-color) 18%, transparent);
-    padding: 5px;
-    border: 1px solid color-mix(in srgb, var(--active-theme-color) 45%, transparent);
+@media (hover: hover) {
+    .vosfor-arc-img:hover {
+        transform: scale(1.18);
+        border-color: color-mix(in srgb, var(--active-theme-color) 90%, transparent);
+    }
 }
 
 .vosfor-syndicate-tag {
@@ -215,8 +378,10 @@
     gap: 6px;
     background: color-mix(in srgb, var(--active-theme-color) 15%, transparent);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 30%, transparent);
-    border-radius: 4px;
-    padding: 2px 7px;
+    border-radius: var(--radius-chip);
+    height: var(--chip-h);
+    padding: 0 10px;
+    box-sizing: border-box;
 }
 
 .vosfor-syndicate-img {
@@ -264,7 +429,7 @@
     border-radius: 0 6px 6px 0;
     font-size: 0.88rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--vos-bright);
     margin: 10px 0 6px;
 }
 
@@ -274,8 +439,8 @@
     min-height: 72px;
     padding: 10px 14px;
     background: linear-gradient(135deg, rgba(22, 10, 16, 0.95) 0%, rgba(8, 20, 14, 0.97) 100%) !important;
-    border-left: 4px solid #42f56c !important;
-    box-shadow: inset 0 0 18px rgba(66, 245, 108, 0.12), 0 0 14px rgba(255, 51, 68, 0.18);
+    border-left: 4px solid var(--vos-best) !important;
+    box-shadow: inset 0 0 18px color-mix(in srgb, var(--vos-best) 12%, transparent), 0 0 14px color-mix(in srgb, var(--vos-jade) 18%, transparent);
     transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -293,15 +458,15 @@
     font-size: 0.74rem;
     font-style: italic;
     font-family: "Georgia", "Times New Roman", serif;
-    color: #ffb3c1;
-    text-shadow: 0 0 8px rgba(255, 51, 68, 0.8), 0 0 12px rgba(0, 240, 255, 0.35);
+    color: var(--vos-jade-soft);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--vos-jade) 80%, transparent), 0 0 12px color-mix(in srgb, var(--vos-jade-cyan) 35%, transparent);
     background: rgba(6, 4, 12, 0.93);
     padding: 4px 10px;
     border-radius: 2px 8px 8px 2px;
-    border-left: 3px solid #ff3344;
-    border-top: 1px solid rgba(255, 51, 68, 0.35);
-    border-right: 1px solid rgba(0, 240, 255, 0.2);
-    border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+    border-left: 3px solid var(--vos-jade);
+    border-top: 1px solid color-mix(in srgb, var(--vos-jade) 35%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--vos-jade-cyan) 20%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--vos-jade-cyan) 20%, transparent);
     margin-top: 4px;
     display: inline-flex;
     align-items: center;
@@ -316,8 +481,8 @@
     font-weight: 700;
     font-style: normal;
     letter-spacing: 0.5px;
-    color: #ff3344;
-    text-shadow: 0 0 6px #ff3344;
+    color: var(--vos-jade);
+    text-shadow: 0 0 6px var(--vos-jade);
     font-size: 0.72rem;
     margin-left: 4px;
 }
@@ -335,6 +500,8 @@
     margin-bottom: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 1;
 }
 
 .vosfor-target-controls {
@@ -353,12 +520,12 @@
 select.vosfor-select,
 .vosfor-target-controls .vosfor-search-input {
     width: 100%;
-    height: 38px;
+    height: var(--ctl-h);
     padding: 0 30px 0 12px;
     border-radius: var(--radius-ctl);
     border: 1px solid var(--wf-border-ctl);
     background-color: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
-    color: #eee;
+    color: var(--vos-text);
     font-size: 0.85rem;
     box-sizing: border-box;
     min-width: 0;
@@ -380,7 +547,7 @@ select.vosfor-select {
 .vosfor-select:focus {
     border-color: var(--active-theme-color) !important;
     box-shadow: 0 0 8px color-mix(in srgb, var(--active-theme-color) 40%, transparent) !important;
-    background-color: #0f1113;
+    background-color: var(--vos-surface-deep);
 }
 
 .vosfor-slider {
@@ -389,7 +556,7 @@ select.vosfor-select {
     width: 100%;
     height: 6px;
     border-radius: 3px;
-    background: #333;
+    background: var(--vos-track);
     outline: none;
     margin: 6px 0;
 }
@@ -406,15 +573,17 @@ select.vosfor-select {
     transition: transform 0.15s ease;
 }
 
-.vosfor-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
+@media (hover: hover) {
+    .vosfor-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+    }
 }
 
 .vosfor-slider::-moz-range-track {
     width: 100%;
     height: 6px;
     border-radius: 3px;
-    background: #333;
+    background: var(--vos-track);
 }
 
 .vosfor-slider::-moz-range-thumb {
@@ -428,8 +597,10 @@ select.vosfor-select {
     transition: transform 0.15s ease;
 }
 
-.vosfor-slider::-moz-range-thumb:hover {
-    transform: scale(1.2);
+@media (hover: hover) {
+    .vosfor-slider::-moz-range-thumb:hover {
+        transform: scale(1.2);
+    }
 }
 
 .vosfor-stat-cards {
@@ -451,7 +622,7 @@ select.vosfor-select {
 
 .vosfor-stat-card-label {
     font-size: 0.74rem;
-    color: #aaa;
+    color: var(--vos-dim);
     margin-bottom: 4px;
     font-weight: 700;
     text-transform: uppercase;
@@ -464,6 +635,12 @@ select.vosfor-select {
     color: var(--vosfor-accent-text);
     margin-top: auto;
     justify-content: center;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 3px;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .vosfor-stat-card [data-f="realnote"]:empty {
@@ -473,10 +650,15 @@ select.vosfor-select {
 .vosfor-ranking-section {
     background: linear-gradient(135deg, rgba(25, 20, 40, 0.9) 0%, rgba(15, 12, 25, 0.95) 100%);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 40%, transparent);
-    border-radius: 12px;
+    border-radius: var(--radius-box);
     padding: 14px 16px;
     margin-bottom: 12px;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .vosfor-ranking-header {
@@ -486,6 +668,7 @@ select.vosfor-select {
     gap: 10px;
     margin-bottom: 10px;
     flex-wrap: wrap;
+    min-width: 0;
 }
 
 .vosfor-ranking-title {
@@ -499,35 +682,40 @@ select.vosfor-select {
 
 .vosfor-ranking-nav {
     display: flex;
-    gap: 4px;
+    gap: var(--gap-ctl);
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: var(--radius-ctl);
     padding: 3px;
     flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .vosfor-ranking-nav-btn {
-    padding: 6px 13px;
+    height: var(--ctl-h);
+    padding: 0 13px;
     font-family: inherit;
     font-size: 0.76rem;
     font-weight: 700;
     border: none;
     border-radius: var(--radius-ctl);
     background: transparent;
-    color: #9aa0aa;
+    color: var(--vos-dim);
     cursor: pointer;
     transition: color 0.18s, background 0.18s;
 }
 
-.vosfor-ranking-nav-btn:hover:not(.active) {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+    .vosfor-ranking-nav-btn:hover:not(.active) {
+        color: var(--vos-bright);
+        background: rgba(255, 255, 255, 0.06);
+    }
 }
 
 .vosfor-ranking-nav-btn.active {
     background: var(--active-theme-color);
-    color: #ffffff;
+    color: var(--vos-bright);
 }
 
 .vosfor-ranking-grid {
@@ -535,22 +723,34 @@ select.vosfor-select {
     flex-direction: column;
     gap: 6px;
     margin-top: 8px;
+    min-width: 0;
 }
 
 .vosfor-ranking-row {
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 10px;
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
+    border-radius: var(--radius-box);
     padding: 8px 12px;
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
     transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.vosfor-ranking-row:hover {
-    background: color-mix(in srgb, var(--active-theme-color) 10%, transparent);
-    border-color: color-mix(in srgb, var(--active-theme-color) 35%, transparent);
+@media (hover: hover) {
+    .vosfor-ranking-row:hover {
+        background: color-mix(in srgb, var(--active-theme-color) 10%, transparent);
+        border-color: color-mix(in srgb, var(--active-theme-color) 35%, transparent);
+    }
 }
 
 .vosfor-rank-medal {
@@ -561,10 +761,10 @@ select.vosfor-select {
     flex-shrink: 0;
 }
 
-.vosfor-rank-gold { color: #ffd76e; }
-.vosfor-rank-silver { color: #dcdcdc; }
-.vosfor-rank-bronze { color: #e8a87c; }
-.vosfor-rank-num { color: #888; font-size: 0.85rem; }
+.vosfor-rank-gold { color: var(--vos-medal-gold); }
+.vosfor-rank-silver { color: var(--vos-medal-silver); }
+.vosfor-rank-bronze { color: var(--vos-medal-bronze); }
+.vosfor-rank-num { color: var(--vos-faint); font-size: 0.85rem; }
 
 .vosfor-rank-info {
     flex: 1;
@@ -574,7 +774,7 @@ select.vosfor-select {
 .vosfor-rank-name {
     font-size: 0.9rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--vos-bright);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -582,19 +782,21 @@ select.vosfor-select {
 
 .vosfor-rank-sub {
     font-size: 0.76rem;
-    color: #aaa;
+    color: var(--vos-dim);
     margin-top: 2px;
 }
 
 .vosfor-rank-stat {
     text-align: right;
     flex-shrink: 0;
+    max-width: 45%;
+    overflow-wrap: anywhere;
 }
 
 .vosfor-rank-val {
     font-size: 0.95rem;
     font-weight: 800;
-    color: #42f56c;
+    color: var(--vos-best);
     font-variant-numeric: tabular-nums;
 }
 
@@ -602,7 +804,7 @@ select.vosfor-select {
 .vosfor-preset-group {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--gap-ctl);
     margin-top: 6px;
     flex-wrap: wrap;
 }
@@ -616,7 +818,7 @@ select.vosfor-select {
 }
 
 .vosfor-sell-rank-btn {
-    height: 38px;
+    height: var(--ctl-h);
     flex: 1;
     display: inline-flex;
     align-items: center;
@@ -627,11 +829,11 @@ select.vosfor-select {
 }
 
 .vosfor-target-controls div:has(> #sell-qty-slider) {
-    height: 38px;
+    height: var(--ctl-h);
 }
 
 #sell-qty-input {
-    height: 38px;
+    height: var(--ctl-h);
     padding: 0 6px;
     border: 1px solid var(--wf-border-ctl);
     border-radius: var(--radius-ctl);
@@ -644,63 +846,99 @@ select.vosfor-select {
 .vosfor-preset-btn {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #9aa0aa;
+    color: var(--vos-dim);
     border-radius: var(--radius-ctl);
-    padding: 3px 9px;
+    height: var(--ctl-h);
+    padding: 0 9px;
     font-size: 0.76rem;
     font-weight: 700;
     cursor: pointer;
     transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 
-.vosfor-preset-btn:hover:not(.active) {
-    border-color: var(--active-theme-color);
-    color: var(--vosfor-accent-text);
+@media (hover: hover) {
+    .vosfor-preset-btn:hover:not(.active) {
+        border-color: var(--active-theme-color);
+        color: var(--vos-accent);
+    }
 }
 
 .vosfor-preset-btn.active {
     background: var(--active-theme-color);
     border-color: var(--active-theme-color);
-    color: #ffffff;
+    color: var(--vos-bright);
 }
 
-.vosfor-guide-box {
-    background: linear-gradient(135deg, rgba(30, 25, 45, 0.8) 0%, rgba(15, 15, 25, 0.9) 100%);
-    border: 1px solid color-mix(in srgb, var(--active-theme-color) 30%, transparent);
+.vos-guide {
+    background: var(--vos-panel-bg);
+    border: 1px solid var(--vos-border);
     border-radius: var(--radius-box);
-    padding: 12px 16px;
-    margin-bottom: 10px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
-.vosfor-guide-title {
-    font-size: 0.92rem;
-    font-weight: 700;
-    color: var(--vosfor-accent-text);
+.vos-guide-sum {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--gap-ctl);
+    min-height: var(--ctl-h);
+    padding: 4px 12px;
+    list-style: none;
     cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--vos-accent);
+    border-radius: var(--radius-ctl);
+    box-sizing: border-box;
+    user-select: none;
+    transition: background-color 0.15s ease;
 }
 
-.vosfor-guide-grid {
+.vos-guide-sum::-webkit-details-marker {
+    display: none;
+}
+
+.vos-guide-sum::before {
+    content: "\25B8" / "";
+    font-size: 0.72rem;
+    color: var(--vos-accent);
+    transition: transform 0.18s ease;
+}
+
+.vos-guide[open] {
+    padding-bottom: 12px;
+}
+
+.vos-guide[open] > .vos-guide-sum::before {
+    transform: rotate(90deg);
+}
+
+.vos-guide > :not(summary) {
+    padding-inline: 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.vos-guide-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 10px;
     margin-top: 10px;
     font-size: 0.82rem;
-    color: #ccc;
+    color: var(--vos-text);
     line-height: 1.5;
 }
 
-.vosfor-guide-item {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 6px;
+.vos-guide-item {
+    background: color-mix(in srgb, var(--vos-surface-deep) 75%, transparent);
+    border-radius: var(--radius-box);
     padding: 8px 10px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--vos-bright) 6%, transparent);
 }
 
-.vosfor-guide-item b {
-    color: #ffffff;
+.vos-guide-item b {
+    color: var(--vos-bright);
     display: block;
     margin-bottom: 2px;
 }
@@ -708,7 +946,7 @@ select.vosfor-select {
 .vosfor-search-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--gap-ctl);
     margin-bottom: 10px;
     flex-wrap: wrap;
 }
@@ -717,11 +955,14 @@ select.vosfor-select {
     flex: 1;
     min-width: 180px;
     width: 100%;
-    padding: 12px;
+    height: var(--ctl-h);
+    padding: 0 12px;
+    padding-block: 0;
+    box-sizing: border-box;
     border-radius: var(--radius-ctl);
     border: 1px solid var(--wf-border-ctl);
     background-color: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
-    color: #eee;
+    color: var(--vos-text);
     font-size: 1em;
     outline: 0;
     transition: all 0.2s ease;
@@ -729,22 +970,24 @@ select.vosfor-select {
 }
 
 .custom-dropdown .dropdown-item {
-    background: #111115;
-    color: #eeeeee;
+    background: var(--vos-surface);
+    color: var(--vos-text);
     padding: 8px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     transition: background 0.15s ease, border-left 0.15s ease;
 }
 
-.custom-dropdown .dropdown-item:hover {
-    background: #281d38 !important;
-    color: #ffffff !important;
-    border-left: 4px solid #c59afc !important;
-}
+@media (hover: hover) {
+    .custom-dropdown .dropdown-item:hover {
+        background: var(--vos-hover-bg) !important;
+        color: var(--vos-bright) !important;
+        border-left: 4px solid var(--vos-accent) !important;
+    }
 
-.custom-dropdown .dropdown-item:hover div,
-.custom-dropdown .dropdown-item:hover span {
-    color: #ffffff !important;
+    .custom-dropdown .dropdown-item:hover div,
+    .custom-dropdown .dropdown-item:hover span {
+        color: var(--vos-bright) !important;
+    }
 }
 
 .vosfor-calc-header {
@@ -776,13 +1019,13 @@ select.vosfor-select {
     gap: 8px;
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 50%, transparent);
-    border-radius: 8px;
+    border-radius: var(--radius-ctl);
     padding: 4px 10px;
 }
 
 .vosfor-calc-input-group label {
     font-size: 0.85rem;
-    color: #bbb;
+    color: var(--vos-dim);
     font-weight: 600;
 }
 
@@ -806,7 +1049,7 @@ select.vosfor-select {
 .vosfor-calc-card {
     background: linear-gradient(145deg, rgba(30, 25, 45, 0.6) 0%, rgba(15, 15, 25, 0.8) 100%);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 20%, transparent);
-    border-radius: 10px;
+    border-radius: var(--radius-box);
     padding: 14px 16px;
     display: flex;
     flex-direction: column;
@@ -816,31 +1059,37 @@ select.vosfor-select {
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.vosfor-calc-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+@media (hover: hover) {
+    .vosfor-calc-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
 }
 
 .vosfor-calc-card.highlight {
-    background: linear-gradient(145deg, rgba(66, 245, 108, 0.1) 0%, rgba(20, 40, 25, 0.8) 100%);
-    border-color: rgba(66, 245, 108, 0.4);
-    box-shadow: 0 4px 15px rgba(66, 245, 108, 0.05);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--vos-best) 10%, transparent) 0%, rgba(20, 40, 25, 0.8) 100%);
+    border-color: color-mix(in srgb, var(--vos-best) 40%, transparent);
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vos-best) 5%, transparent);
 }
 
-.vosfor-calc-card.highlight:hover {
-    border-color: rgba(66, 245, 108, 0.7);
-    box-shadow: 0 6px 20px rgba(66, 245, 108, 0.15);
+@media (hover: hover) {
+    .vosfor-calc-card.highlight:hover {
+        border-color: color-mix(in srgb, var(--vos-best) 70%, transparent);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--vos-best) 15%, transparent);
+    }
 }
 
 .vosfor-calc-card.highlight-liquid {
-    background: linear-gradient(145deg, rgba(126, 203, 255, 0.1) 0%, rgba(20, 30, 45, 0.8) 100%);
-    border-color: rgba(126, 203, 255, 0.4);
-    box-shadow: 0 4px 15px rgba(126, 203, 255, 0.05);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--vos-liquid) 10%, transparent) 0%, rgba(20, 30, 45, 0.8) 100%);
+    border-color: color-mix(in srgb, var(--vos-liquid) 40%, transparent);
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vos-liquid) 5%, transparent);
 }
 
-.vosfor-calc-card.highlight-liquid:hover {
-    border-color: rgba(126, 203, 255, 0.7);
-    box-shadow: 0 6px 20px rgba(126, 203, 255, 0.15);
+@media (hover: hover) {
+    .vosfor-calc-card.highlight-liquid:hover {
+        border-color: color-mix(in srgb, var(--vos-liquid) 70%, transparent);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--vos-liquid) 15%, transparent);
+    }
 }
 
 .vosfor-calc-card-tag {
@@ -850,33 +1099,38 @@ select.vosfor-select {
     font-weight: 800;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     margin-bottom: 2px;
+    overflow-wrap: anywhere;
 }
 
 .vosfor-calc-card-name {
     font-size: 1.05rem;
     font-weight: 800;
-    color: #ffffff;
+    color: var(--vos-bright);
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    overflow-wrap: anywhere;
 }
 
 .vosfor-calc-card-stat {
     font-size: 1.15rem;
     font-weight: 800;
-    color: #42f56c;
+    color: var(--vos-best);
     display: flex;
     align-items: center;
     gap: 6px;
     background: rgba(0, 0, 0, 0.2);
     padding: 6px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-box);
     border: 1px solid rgba(255, 255, 255, 0.05);
     margin-top: 4px;
+    flex-wrap: wrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .vosfor-calc-card-stat-label {
     font-size: 0.72rem;
     font-weight: 700;
-    color: #aaa;
+    color: var(--vos-dim);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-right: 4px;
@@ -884,22 +1138,28 @@ select.vosfor-select {
 
 .vosfor-calc-card-sub {
     font-size: 0.8rem;
-    color: #ccc;
+    color: var(--vos-text);
     background: rgba(0, 0, 0, 0.15);
     padding: 6px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-box);
     border: 1px solid rgba(255, 255, 255, 0.04);
     line-height: 1.4;
     margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 3px;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .vosfor-calc-card-trade {
     font-size: 0.76rem;
-    color: #e8c88a;
-    background: rgba(224, 176, 64, 0.1);
-    border: 1px solid rgba(224, 176, 64, 0.25);
+    color: var(--vos-trade);
+    background: color-mix(in srgb, var(--vos-warn) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--vos-warn) 25%, transparent);
     padding: 6px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-box);
     margin-top: 6px;
     line-height: 1.4;
 }
@@ -922,7 +1182,7 @@ select.vosfor-select {
 
 .vosfor-explain-text {
     font-size: 0.84rem;
-    color: #bbb;
+    color: var(--vos-dim);
     line-height: 1.5;
     background: rgba(0, 0, 0, 0.2);
     border-left: 3px solid color-mix(in srgb, var(--active-theme-color) 60%, transparent);
@@ -931,31 +1191,77 @@ select.vosfor-select {
     margin-bottom: 4px;
 }
 
-.vosfor-pack-card {
-    background: rgba(18, 18, 28, 0.7);
-    border: 1px solid color-mix(in srgb, var(--active-theme-color) 20%, transparent);
-    border-radius: 10px;
-    padding: 12px 14px;
-    transition: all 0.2s ease;
+.vos-pack {
+    position: relative;
+    background: var(--vos-panel-bg);
+    border: 1px solid var(--vos-border);
+    border-radius: var(--radius-box);
+    overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
 }
 
-.vosfor-pack-card.expanded {
-    border-color: color-mix(in srgb, var(--active-theme-color) 50%, transparent);
-    background: rgba(22, 20, 36, 0.9);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+.vos-pack:has(.vos-pack-head[aria-expanded="true"]) {
+    border-color: color-mix(in srgb, var(--vos-accent) 48%, transparent);
 }
 
-.vosfor-pack-header {
-    display: flex;
+.vos-pack.is-best::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--vos-best);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.vos-pack-head {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-areas:
+        "ico main caret"
+        "ev ev ev";
     align-items: center;
-    gap: 12px;
+    gap: var(--gap-ctl);
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    padding: 8px 10px 8px 12px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    appearance: none;
     cursor: pointer;
     user-select: none;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease;
 }
 
-.vosfor-pack-title {
+.vos-pack-head > img {
+    grid-area: ico;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: var(--radius-ctl);
+    background: var(--vos-accent-soft);
+    border: 1px solid var(--vos-border);
+    padding: 2px;
+    box-sizing: border-box;
+    display: block;
+}
+
+.vos-pack-nm {
+    min-width: 0;
+    overflow-wrap: anywhere;
     font-size: 1rem;
-    color: #ffffff;
+    color: var(--vos-bright);
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -963,35 +1269,72 @@ select.vosfor-select {
     flex-wrap: wrap;
 }
 
-.vosfor-pack-sub {
+.vos-pack-sub {
+    display: block;
     font-size: 0.8rem;
-    color: #999;
+    color: var(--vos-dim);
     margin-top: 3px;
 }
 
-.vosfor-pack-ev {
-    text-align: right;
+.vos-pack-ev {
+    grid-area: ev;
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: flex-end;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
-.vosfor-rate-val {
+.vos-pack-ev:empty {
+    display: none;
+}
+
+.vos-pack-rate {
     font-size: 0.92rem;
     font-weight: 700;
 }
 
-.vosfor-ev-detail {
-    font-size: 0.78rem;
-    color: #aaa;
+.vos-caret {
+    grid-area: caret;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vos-accent);
+    transition: transform 0.2s ease;
+}
+
+.vos-pack-head[aria-expanded="true"] .vos-caret {
+    transform: rotate(180deg);
+}
+
+.vos-pack-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 8px 10px;
+    border-top: 1px solid var(--vos-border);
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.vos-pack:has(.vos-pack-head[aria-expanded="false"]) .vos-pack-body,
+.vos-pack-body:empty {
+    display: none;
 }
 
 .badge-vosfor {
     font-size: 0.72rem;
     font-weight: 700;
-    border-radius: 4px;
-    padding: 2px 6px;
+    border-radius: var(--radius-chip);
+    height: var(--chip-h);
+    padding: 0 10px;
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -999,36 +1342,30 @@ select.vosfor-select {
     white-space: nowrap;
 }
 
-@media (max-width: 600px) {
-    .vosfor-pack-title .badge-vosfor {
-        white-space: normal;
-    }
-}
-
 .badge-best-spend {
-    background: rgba(66, 245, 108, 0.15);
-    color: #42f56c;
-    border-color: rgba(66, 245, 108, 0.4);
+    background: color-mix(in srgb, var(--vos-best) 15%, transparent);
+    color: var(--vos-best);
+    border-color: color-mix(in srgb, var(--vos-best) 40%, transparent);
 }
 
 .badge-high-liquid {
-    background: rgba(126, 203, 255, 0.15);
-    color: #7ecbff;
-    border-color: rgba(126, 203, 255, 0.4);
+    background: color-mix(in srgb, var(--vos-liquid) 15%, transparent);
+    color: var(--vos-liquid);
+    border-color: color-mix(in srgb, var(--vos-liquid) 40%, transparent);
 }
 
 .vosfor-highlights {
     background: color-mix(in srgb, var(--active-theme-color) 8%, transparent);
     border: 1px dashed color-mix(in srgb, var(--active-theme-color) 30%, transparent);
-    border-radius: 8px;
+    border-radius: var(--radius-box);
     padding: 10px 12px;
     margin: 10px 0;
     font-size: 0.82rem;
-    color: #ccc;
+    color: var(--vos-text);
     line-height: 1.6;
 }
 
-.vosfor-sort-bar {
+.vos-sort-bar {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1036,167 +1373,295 @@ select.vosfor-select {
     flex-wrap: wrap;
 }
 
-.vosfor-sort-label {
+.vos-sort-label {
     font-size: 0.76rem;
-    color: #aaa;
+    color: var(--vos-dim);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-weight: 600;
 }
 
-.vosfor-sort-group {
-    display: flex;
-    gap: 4px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: var(--radius-ctl);
-    padding: 3px;
-    flex-wrap: wrap;
+.vos-lbl-short {
+    display: none;
 }
 
-.vosfor-sort-btn {
-    padding: 6px 13px;
-    font-family: inherit;
-    font-size: 0.76rem;
-    font-weight: 700;
-    cursor: pointer;
-    border: none;
-    border-radius: var(--radius-ctl);
-    background: transparent;
-    color: #9aa0aa;
-    transition: color 0.18s, background 0.18s;
+@media (max-width: 600px) {
+    .vos-lbl-long {
+        display: none;
+    }
+
+    .vos-lbl-short {
+        display: inline;
+    }
 }
 
-.vosfor-sort-btn:hover:not(.active) {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.vosfor-sort-btn.active {
-    background: var(--active-theme-color);
-    color: #ffffff;
-}
-
-.vosfor-table-header {
-    display: flex;
-    gap: 10px;
-    padding: 6px 10px;
-    font-size: 0.72rem;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 700;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.vosfor-arc-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 9px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    transition: background 0.15s ease;
-}
-
-.vosfor-arc-row:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.vosfor-arc-main-line {
-    display: flex;
+.vos-arc-head {
+    display: none;
+    grid-template-columns: 32px minmax(0, 1fr) 92px 92px 92px;
+    grid-template-areas: "img nm pr ds vd";
+    column-gap: 12px;
     align-items: center;
-    gap: 10px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 4px 15px 4px 17px;
+    color: var(--vos-muted);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
 }
 
-.vosfor-arc-info {
-    flex: 1.5;
+.vos-arc-head > * {
+    min-width: 0;
+    color: inherit;
+    font: inherit;
+}
+
+.vos-arc-head > :first-child {
+    grid-column: 2;
+}
+
+.vos-arc-head > :nth-child(n + 2) {
+    text-align: right;
+}
+
+.vos-arc {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-areas:
+        "img nm vd"
+        "img pr ds";
+    column-gap: 8px;
+    row-gap: 6px;
+    align-items: center;
+    min-height: 52px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 9px 10px 9px 12px;
+    background: var(--vos-row-bg);
+    border: 1px solid transparent;
+    border-radius: var(--radius-ctl);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.vos-arc + .vos-arc {
+    margin-top: 5px;
+}
+
+.vos-arc::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+    background: var(--sig, var(--vos-muted));
+    pointer-events: none;
+}
+
+.vos-arc.sig-sell {
+    --sig: var(--vos-sig-sell);
+}
+
+.vos-arc.sig-dissolve {
+    --sig: var(--vos-sig-dissolve);
+}
+
+.vos-arc.sig-even {
+    --sig: var(--vos-sig-even);
+}
+
+.vos-arc-img {
+    grid-area: img;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: var(--radius-ctl);
+    background: var(--vos-bar-bg);
+    border: 1px solid var(--vos-border);
+    padding: 2px;
+    box-sizing: border-box;
+    display: block;
+}
+
+.vos-arc-img > img {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    box-sizing: border-box;
+    object-fit: contain;
+    display: block;
+}
+
+.vos-arc-nm {
+    grid-area: nm;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.vos-arc-meta {
+    flex: 1 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
 }
 
-.vosfor-arc-name {
-    font-size: 0.88rem;
-    color: #ffffff;
+.vos-arc-link {
+    color: var(--vos-bright);
+    font-size: 0.86rem;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.25;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-decoration: underline dotted color-mix(in srgb, var(--vos-accent) 45%, transparent);
+    text-underline-offset: 2px;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 
-.vosfor-arc-name a {
-    color: inherit;
+.vos-arc-acts {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    flex-shrink: 0;
+    transition: opacity 0.15s ease;
+}
+
+.vos-arc-act {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0 4px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-ctl);
+    background: transparent;
+    color: var(--vos-muted);
     text-decoration: none;
-}
-
-.vosfor-arc-name a:hover {
-    color: var(--vosfor-accent-text);
-    text-decoration: underline;
-}
-
-.vosfor-arc-chips {
-    margin-top: 3px;
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-.vosfor-arc-price-col {
-    flex: 1;
-    text-align: right;
-    font-size: 0.85rem;
-}
-
-.vosfor-arc-dissolve-col {
-    flex: 1;
-    text-align: right;
-    font-size: 0.84rem;
-}
-
-.vosfor-arc-verdict-col {
-    flex: 0 0 85px;
-    text-align: right;
-}
-
-.vosfor-r0r5-toggle-box {
-    margin-top: 4px;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 6px;
-    padding: 6px 10px;
+    font: inherit;
     font-size: 0.78rem;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.vosfor-r0r5-item {
+.vos-arc-pr {
+    grid-area: pr;
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: flex-start;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--vos-bright);
+    overflow-wrap: anywhere;
 }
 
-.vosfor-r0r5-label {
+.vos-arc-ds {
+    grid-area: ds;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    text-align: right;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
     font-weight: 700;
-    color: #999;
-    font-size: 0.72rem;
+    color: var(--vos-accent);
+    overflow-wrap: anywhere;
+}
+
+.vos-arc-vd {
+    grid-area: vd;
+    display: flex;
+    align-items: center;
+    align-self: start;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.vos-verdict {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-sizing: border-box;
+    min-width: 84px;
+    max-width: 100%;
+    height: 18px;
+    padding: 0 7px;
+    border: 1.5px solid var(--sig, var(--vos-muted));
+    border-radius: var(--radius-chip);
+    color: var(--sig, var(--vos-muted));
+    background: color-mix(in srgb, var(--sig, var(--vos-muted)) 10%, transparent);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.vos-verdict::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+}
+
+.vos-verdict--high {
+    border-style: solid;
+}
+
+.vos-verdict--med {
+    border-style: dashed;
+}
+
+.vos-verdict--low {
+    border-style: dotted;
 }
 
 .verdict-tag {
     font-size: 0.72rem;
     font-weight: 800;
     border: 1px solid;
-    border-radius: 4px;
-    padding: 2px 7px;
-    display: inline-block;
+    border-radius: var(--radius-chip);
+    height: var(--chip-h);
+    padding: 0 10px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
     letter-spacing: 0.3px;
 }
 
 .verdict-sell {
     color: var(--wf-lfg);
-    border-color: rgba(66, 245, 108, 0.5);
-    background: rgba(66, 245, 108, 0.1);
+    border-color: color-mix(in srgb, var(--vos-best) 50%, transparent);
+    background: color-mix(in srgb, var(--vos-best) 10%, transparent);
 }
 
 .verdict-dissolve {
@@ -1206,9 +1671,9 @@ select.vosfor-select {
 }
 
 .verdict-even {
-    color: #e0b040;
-    border-color: rgba(224, 176, 64, 0.5);
-    background: rgba(224, 176, 64, 0.1);
+    color: var(--vos-warn);
+    border-color: color-mix(in srgb, var(--vos-warn) 50%, transparent);
+    background: color-mix(in srgb, var(--vos-warn) 10%, transparent);
 }
 
 @media (max-width: 600px) {
@@ -1219,12 +1684,6 @@ select.vosfor-select {
     .vosfor-calc-input-group {
         width: 100%;
         justify-content: space-between;
-    }
-    .vosfor-arc-main-line {
-        flex-wrap: wrap;
-    }
-    .vosfor-arc-info {
-        flex: 1 0 100%;
     }
 }
 
@@ -1240,45 +1699,10 @@ select.vosfor-select {
     min-width: 0;
 }
 
-.vosfor-calc-card-name,
-.vosfor-calc-card-tag {
-    overflow-wrap: anywhere;
-}
-
-.vosfor-calc-card-stat {
-    flex-wrap: wrap;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-.vosfor-calc-card-sub {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    column-gap: 3px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
 .vosfor-calc-card-sub img,
 .vosfor-calc-card-stat img,
 .vosfor-stat-card-val img {
     flex-shrink: 0;
-}
-
-.vosfor-stat-card-val {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 3px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-.vosfor-target-widget,
-.vosfor-ranking-section {
-    position: relative;
-    z-index: 1;
 }
 
 .vosfor-target-widget:focus-within {
@@ -1290,19 +1714,19 @@ select.vosfor-select {
 }
 
 .vosfor-sindicatos-widget {
-    max-width: 900px;
+    max-width: 100%;
     margin: 0 auto;
 }
 
 .vos-sind-intro {
     font-size: 0.72rem;
-    color: #bbb;
+    color: var(--vos-dim);
     margin-bottom: 8px;
 }
 
 .vos-sind-intro summary {
     cursor: pointer;
-    color: #999;
+    color: var(--vos-dim);
     width: fit-content;
 }
 
@@ -1313,8 +1737,40 @@ select.vosfor-select {
 
 .vos-sind-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
     gap: 10px;
+}
+
+.vos-search-bar-row.vos-sind-filtro {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--gap-ctl);
+    margin-bottom: 10px;
+}
+
+.vos-sind-filtro-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    min-width: var(--ctl-h);
+    height: var(--ctl-h);
+    padding: 0 10px;
+    box-sizing: border-box;
+    border: 1px solid var(--vos-border-ctl);
+    border-radius: var(--radius-ctl);
+    background: var(--vos-bar-bg);
+    color: var(--vos-muted);
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.vos-sind-filtro-x[hidden] {
+    display: none;
 }
 
 .vos-sind-orden {
@@ -1323,7 +1779,7 @@ select.vosfor-select {
     gap: 6px;
     margin-bottom: 8px;
     font-size: 0.72rem;
-    color: #999;
+    color: var(--vos-dim);
 }
 
 .vos-sind-orden .vosfor-ranking-nav-btn {
@@ -1334,8 +1790,15 @@ select.vosfor-select {
 .vos-sindicato {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
+    border-radius: var(--radius-box);
     padding: 8px 10px;
+}
+
+.vos-sindicato .vosfor-syndicate-img {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    object-fit: contain;
 }
 
 .vos-sindicato[open] {
@@ -1360,9 +1823,16 @@ select.vosfor-select {
     padding: 4px 2px;
 }
 
+.vos-sind-cab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
 .vos-sind-nombre {
     font-weight: 700;
-    color: #e8c88a;
+    color: var(--vos-trade);
 }
 
 .vos-sind-lineas {
@@ -1370,9 +1840,10 @@ select.vosfor-select {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     column-gap: 6px;
     row-gap: 2px;
+    width: 100%;
     max-width: 100%;
     font-size: 0.78rem;
-    color: #ccc;
+    color: var(--vos-text);
     text-align: left;
 }
 
@@ -1385,7 +1856,7 @@ select.vosfor-select {
 }
 
 .vos-sind-etiqueta {
-    color: #888;
+    color: var(--vos-faint);
     white-space: nowrap;
 }
 
@@ -1409,7 +1880,7 @@ select.vosfor-select {
 
 .vos-sind-marca,
 .vos-sind-gana {
-    color: #00ff78;
+    color: var(--vos-best);
     font-weight: 800;
 }
 
@@ -1424,7 +1895,7 @@ select.vosfor-select {
 }
 
 .vos-sind-tabla th {
-    color: #999;
+    color: var(--vos-dim);
     font-size: 0.7rem;
     text-align: right;
     padding: 2px 6px;
@@ -1444,30 +1915,51 @@ select.vosfor-select {
 
 .vos-sind-arcano {
     padding: 8px 8px;
-    color: #fff;
+    color: var(--vos-bright);
+}
+
+.vos-sind-arc-cab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.vos-sind-arc-info {
+    min-width: 0;
+}
+
+.vos-sind-arcano .vosfor-arc-img {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    padding: 2px;
+    box-sizing: border-box;
 }
 
 .vos-sind-num {
     text-align: right;
     padding: 8px 8px;
-    color: #ddd;
+    color: var(--vos-text);
     font-variant-numeric: tabular-nums;
 }
 
 .vos-sind-num.vos-sind-gana {
-    color: #00ff78;
+    color: var(--vos-best);
 }
 
 .vos-sind-detalle {
     font-size: 0.66rem;
-    color: #888;
+    color: var(--vos-faint);
     font-weight: 400;
     opacity: 0.55;
     transition: opacity 0.15s;
 }
 
-.vos-sind-tabla tbody tr:hover .vos-sind-detalle {
-    opacity: 1;
+@media (hover: hover) {
+    .vos-sind-tabla tbody tr:hover .vos-sind-detalle {
+        opacity: 1;
+    }
 }
 
 @media (max-width: 600px) {
@@ -1521,5 +2013,1046 @@ select.vosfor-select {
     .vosfor-ranking-row .vosfor-jade-img {
         width: 56px !important;
         height: 56px !important;
+    }
+}
+
+.vos-icon {
+    width: 13px;
+    height: 13px;
+    object-fit: contain;
+    vertical-align: middle;
+    margin-left: 2px;
+}
+
+.vos-icon--vosfor {
+    width: 15px;
+    height: 15px;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+.vos-icon--12 {
+    width: 12px;
+    height: 12px;
+}
+
+.vos-icon--13 {
+    width: 13px;
+    height: 13px;
+}
+
+.vos-icon--15 {
+    width: 15px;
+    height: 15px;
+}
+
+.vos-speed-chip {
+    font-size: 0.68rem;
+    font-weight: 700;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
+.vos-speed--fast {
+    color: var(--vos-best);
+    border-color: rgba(66, 245, 108, 0.4);
+    background: rgba(66, 245, 108, 0.08);
+}
+
+.vos-speed--med {
+    color: var(--vos-amber);
+    border-color: rgba(224, 176, 64, 0.4);
+    background: rgba(224, 176, 64, 0.08);
+}
+
+.vos-speed--slow {
+    color: var(--vos-coral);
+    border-color: rgba(255, 136, 102, 0.35);
+    background: rgba(255, 136, 102, 0.08);
+}
+
+.vos-prob-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--vos-liquid);
+    border: 1px solid rgba(126, 203, 255, 0.35);
+    border-radius: 4px;
+    padding: 1px 5px;
+    background: rgba(126, 203, 255, 0.08);
+    cursor: help;
+}
+
+.vos-liq-loading {
+    font-size: 0.72rem;
+    color: var(--label-color);
+}
+
+.vos-liq {
+    cursor: help;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.68rem;
+    font-weight: 600;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 1px 5px;
+    gap: 2px;
+}
+
+.vos-liq--high {
+    color: var(--vos-best);
+    border-color: rgba(66, 245, 108, 0.4);
+    background: rgba(66, 245, 108, 0.1);
+}
+
+.vos-liq--med {
+    color: var(--vos-amber);
+    border-color: rgba(224, 176, 64, 0.4);
+    background: rgba(224, 176, 64, 0.1);
+}
+
+.vos-liq--low {
+    color: var(--vos-coral);
+    border-color: rgba(255, 136, 102, 0.35);
+    background: rgba(255, 136, 102, 0.08);
+}
+
+.vos-liq--none {
+    color: var(--vos-faint);
+    border-color: rgba(130, 130, 130, 0.3);
+    background: rgba(130, 130, 130, 0.08);
+}
+
+.vos-demand-dot {
+    color: var(--vos-liquid);
+}
+
+.vos-mode-label {
+    font-size: 0.75rem;
+    color: var(--vos-dim);
+    margin-right: 4px;
+}
+
+.vos-rank-unit {
+    font-size: 0.75rem;
+    font-weight: normal;
+    color: var(--vos-dim);
+}
+
+.vos-rank-note {
+    font-size: 0.72rem;
+    font-weight: normal;
+    color: var(--vos-dim);
+}
+
+.vos-rank-tag {
+    font-size: 0.72rem;
+    color: var(--vos-dim);
+}
+
+.vos-rank-nothing {
+    font-size: 0.82rem;
+}
+
+.vos-rank-val--accent {
+    color: var(--vos-accent);
+}
+
+.vos-rank-val--liquid {
+    color: var(--vos-liquid);
+}
+
+.vosfor-rarity-header {
+    padding-bottom: 4px;
+    margin-top: 12px;
+    margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    color: var(--vos-rar-hdr, var(--vos-text));
+    border-bottom: 1px solid color-mix(in srgb, var(--vos-rar-hdr, var(--vos-text)) 25%, transparent);
+}
+
+.vos-rarity-hdr--legendary {
+    --vos-rar-hdr: var(--wf-orokin);
+}
+
+.vos-rarity-hdr--rare {
+    --vos-rar-hdr: var(--vos-accent);
+}
+
+.vos-rarity-hdr--uncommon {
+    --vos-rar-hdr: var(--vos-uncommon-hdr);
+}
+
+.vos-rarity-hdr--common {
+    --vos-rar-hdr: var(--vos-common-hdr);
+}
+
+.vos-low-tag {
+    font-size: 0.62rem;
+    color: var(--vos-coral);
+    border: 1px solid rgba(255, 136, 102, 0.35);
+    border-radius: 3px;
+    padding: 0 4px;
+}
+
+.vos-wfm-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+@media (hover: hover) {
+    .vos-wfm-link:hover {
+        text-decoration: underline;
+    }
+}
+
+.vos-wfm-link--underline {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.vos-prob-avg {
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    color: var(--vos-text);
+}
+
+.vos-text-gold {
+    color: var(--vos-medal-gold);
+}
+
+.vos-text-best {
+    color: var(--vos-best);
+}
+
+.vos-text-err-soft {
+    color: var(--vos-err-soft);
+}
+
+.vos-prob-card {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.vos-prob-title {
+    font-weight: 700;
+    color: var(--vos-dim);
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+.vos-prob-list {
+    margin: 0 0 6px;
+    padding-left: 18px;
+    color: var(--vos-sub-list);
+}
+
+.vos-prob-note {
+    font-size: 0.7rem;
+    color: var(--vos-faint);
+}
+
+.vos-dd-body {
+    flex: 1;
+    min-width: 0;
+    margin-left: 8px;
+}
+
+.vos-dd-title {
+    font-weight: 700;
+    font-size: 0.88rem;
+}
+
+.vos-dd-sub {
+    font-size: 0.74rem;
+}
+
+.vos-ctl-label {
+    font-size: 0.78rem;
+    color: var(--vos-dim);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.vos-ctl-label--tight {
+    margin-bottom: 2px;
+    text-align: left;
+}
+
+.vos-rel {
+    position: relative;
+}
+
+.vos-dd-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.vos-input-pr {
+    padding-right: 30px;
+}
+
+.vos-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--vos-surface);
+    border: 1px solid var(--active-theme-color);
+    z-index: 9999;
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+}
+
+.vos-col-span-1 {
+    grid-column: span 1;
+}
+
+.vos-qty-badge-row {
+    text-align: left;
+    margin-bottom: 6px;
+}
+
+.vos-qty-badge {
+    color: var(--vosfor-accent-text);
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.vos-preset-group--spread {
+    margin-top: 4px;
+    justify-content: space-between;
+}
+
+.vos-stat-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.vos-editable-tag {
+    font-size: 0.65rem;
+    color: var(--vosfor-accent-text);
+}
+
+.vos-pulls-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.vos-pulls-input {
+    width: 75px;
+    font-size: 1.05rem;
+    padding-block: 0;
+    padding-inline: 4px;
+    height: var(--ctl-h);
+    box-sizing: border-box;
+    text-align: center;
+    color: var(--vos-bright);
+    border-color: color-mix(in srgb, var(--active-theme-color) 40%, transparent);
+}
+
+.vos-pulls-count {
+    font-size: 0.8rem;
+    color: var(--vos-dim);
+}
+
+.vos-target-explain {
+    font-size: 0.75rem;
+    color: var(--vos-faint);
+    margin-top: 8px;
+}
+
+.vos-target-prob {
+    font-size: 0.75rem;
+    color: var(--vos-dim);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.vos-text-accent {
+    color: var(--vosfor-accent-text);
+}
+
+.vos-mt-8 {
+    margin-top: 8px;
+}
+
+.vos-flex-1 {
+    flex: 1;
+}
+
+.vos-nowrap {
+    white-space: nowrap;
+}
+
+.vos-help {
+    cursor: help;
+}
+
+.vos-sell-msg {
+    font-size: 0.82rem;
+    color: var(--vos-faint);
+    padding: 8px 0;
+}
+
+.vos-sell-nomarket {
+    color: var(--vos-faint);
+    font-size: 0.8rem;
+}
+
+.vos-sell-sub {
+    font-size: 0.66rem;
+    color: var(--vos-faint);
+}
+
+.vos-sell-sub--accent {
+    font-size: 0.66rem;
+    color: var(--vos-accent);
+}
+
+.vos-sell-verdict-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.vos-verdict-tag--lg {
+    font-size: 0.85rem;
+}
+
+.vos-sell-verdict-note {
+    font-size: 0.76rem;
+    color: rgb(153 153 153);
+}
+
+.vos-sell-liq-row {
+    font-size: 0.74rem;
+    color: var(--vos-faint);
+    margin-top: 6px;
+}
+
+.vos-sell-unit-note {
+    font-size: 0.72rem;
+    color: var(--label-color);
+    margin-top: 4px;
+}
+
+.vos-sell-widget {
+    border-color: rgba(66, 245, 108, 0.5);
+    box-shadow: 0 4px 20px rgba(66, 245, 108, 0.15);
+}
+
+.vos-dropdown-menu--sell {
+    border-color: var(--vos-best);
+}
+
+.vos-ctl-label--mb2 {
+    margin-bottom: 2px;
+}
+
+.vos-sell-qty-badge {
+    color: var(--vos-best);
+    font-weight: bold;
+}
+
+.vos-sell-qty-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vos-sell-qty-input {
+    width: 70px;
+}
+
+.vos-pending-dots {
+    font-size: 0.72rem;
+    color: var(--vos-faint);
+}
+
+.vos-gamble {
+    cursor: help;
+    color: var(--vos-warn);
+    font-weight: 700;
+    font-size: 0.62rem;
+    border: 1px solid rgba(255, 179, 0, 0.5);
+    border-radius: 3px;
+    padding: 0 3px;
+}
+
+.vos-price-loading {
+    color: var(--label-color);
+}
+
+.vos-col-price {
+    font-size: 0.8rem;
+    color: var(--vos-dim);
+}
+
+.vos-col-price b {
+    color: var(--vos-bright);
+}
+
+.vos-col-price .vos-nomarket {
+    color: var(--vos-faint);
+}
+
+.vos-col-dissolve {
+    color: var(--vos-accent);
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+
+.vos-search-results {
+    margin-top: 10px;
+    border-color: color-mix(in srgb, var(--active-theme-color) 45%, transparent);
+    background: linear-gradient(135deg, rgba(20, 20, 28, 0.9) 0%, rgba(12, 12, 18, 0.95) 100%);
+}
+
+.vos-rows-box {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.vos-rows-box--mb {
+    margin-bottom: 8px;
+}
+
+.vos-hl-sell {
+    color: var(--vos-best);
+    font-weight: bold;
+}
+
+.vos-hl-dissolve {
+    color: var(--vos-accent);
+    font-weight: bold;
+}
+
+.vos-syn-grp-info {
+    z-index: 2;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.vos-pack-loading {
+    font-size: 0.78rem;
+    color: var(--vos-faint);
+    animation: vosPackShimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes vosPackShimmer {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+
+.vos-rate-val--best {
+    color: var(--vos-best);
+}
+
+.vos-rate-val--normal {
+    color: var(--vos-text);
+}
+
+.vos-ev-detail-end {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.vos-pack-top {
+    margin-top: 2px;
+    color: var(--vos-sub-list);
+}
+
+.vos-pack-main {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.vos-pack-sub-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.vos-pack-syn-name {
+    color: var(--vosfor-accent-text);
+    font-weight: 600;
+}
+
+.vos-guide-note {
+    font-size: 0.8rem;
+    color: var(--vos-sub-list);
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+.vos-search-bar-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.vos-search-input {
+    flex: 1;
+    min-width: 200px;
+}
+
+.vos-expand-all-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.vos-pix-intro {
+    font-size: 0.72rem;
+    color: rgb(187 187 187);
+    margin-bottom: 6px;
+}
+
+.vos-pix-verdict {
+    font-size: 0.74rem;
+    color: rgb(203 179 224);
+    margin-top: 8px;
+}
+
+.vos-packs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vos-data-note {
+    font-size: 0.75rem;
+    color: var(--label-color);
+    margin-top: 6px;
+}
+
+.vos-skel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 24px;
+}
+
+.vos-skel-row {
+    display: block;
+    width: 100%;
+    height: 44px;
+    border-radius: 8px;
+    background: var(--vos-row-bg);
+}
+
+.vos-skel--cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    padding: 0;
+}
+
+.vos-skel--cards .vos-skel-card {
+    height: auto;
+    min-height: var(--vos-skel-card-h);
+}
+
+.vos-skel--cards .vos-skel-line {
+    grid-column: 1 / -1;
+    height: auto;
+    min-height: var(--vos-skel-line-h);
+}
+
+.vos-skel--list {
+    padding: 0;
+    gap: 6px;
+}
+
+.vos-skel--list .vos-skel-item {
+    height: auto;
+    min-height: var(--vos-skel-item-h);
+}
+
+.vos-skel--page {
+    min-height: var(--vos-skel-page-h);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    @keyframes vos-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: 0 0; }
+    }
+
+    .vos-skel-row {
+        background: linear-gradient(90deg, var(--vos-row-bg) 25%, var(--vos-skel) 50%, var(--vos-row-bg) 75%);
+        background-size: 200% 100%;
+        animation: vos-shimmer 1.4s ease-in-out infinite;
+    }
+}
+
+.vos-state {
+    text-align: center;
+    color: var(--vos-dim);
+    font-size: 0.95rem;
+    padding: 24px;
+}
+
+.vos-state-msg {
+    margin: 0;
+}
+
+.vos-state-hint {
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: var(--vos-dim);
+}
+
+.vos-state.is-error {
+    color: var(--vos-err);
+    font-size: 0.92rem;
+}
+
+.vos-state .vos-btn {
+    margin-top: 10px;
+}
+
+.vosfor-container :is(
+    .vos-tab,
+    .vos-seg-btn,
+    .vos-pack-head
+):focus-visible {
+    position: relative;
+    z-index: 2;
+    outline: 2px solid var(--vos-accent);
+    outline-offset: -2px;
+}
+
+.vosfor-container :is(
+    button.vos-chip,
+    .vos-btn,
+    .vos-guide-sum,
+    .vos-arc-link,
+    .vos-arc-act,
+    .vos-verdict,
+    .vosfor-ranking-nav-btn,
+    .vosfor-ranking-row,
+    .vosfor-search-input,
+    select.vosfor-select,
+    .custom-dropdown .dropdown-item,
+    .vos-sind-intro summary,
+    .vos-sindicato > summary,
+    .vos-sind-filtro-x
+):focus-visible {
+    outline: 2px solid var(--vos-accent);
+    outline-offset: 2px;
+}
+
+@media (hover: hover) {
+    .vos-tab:hover {
+        color: var(--vos-bright);
+    }
+
+    .vos-tab[aria-selected="true"]:hover {
+        color: var(--vos-accent);
+    }
+
+    .vos-seg-btn:hover:not([aria-pressed="true"]) {
+        color: var(--vos-bright);
+        background: color-mix(in srgb, var(--vos-accent) 8%, transparent);
+    }
+
+    button.vos-chip:hover {
+        border-color: var(--vos-accent);
+        color: var(--vos-bright);
+    }
+
+    .vos-btn:hover,
+    .vos-sind-filtro-x:hover {
+        color: var(--vos-accent);
+        border-color: var(--vos-accent);
+        background: var(--vos-accent-soft);
+    }
+
+    .vos-guide-sum:hover {
+        background: color-mix(in srgb, var(--vos-accent) 8%, transparent);
+    }
+
+    .vos-pack-head:hover {
+        background: color-mix(in srgb, var(--vos-accent) 8%, transparent);
+    }
+
+    .vos-arc-acts {
+        opacity: 0.72;
+    }
+
+    .vos-arc:hover {
+        background: color-mix(in srgb, var(--vos-row-bg) 82%, var(--vos-accent) 18%);
+        border-color: color-mix(in srgb, var(--sig, var(--vos-border-ctl)) 48%, transparent);
+    }
+
+    .vos-arc:hover .vos-arc-acts,
+    .vos-arc:focus-within .vos-arc-acts {
+        opacity: 1;
+    }
+
+    .vos-arc-link:hover {
+        color: var(--vos-accent);
+        text-decoration-style: solid;
+        text-decoration-color: var(--vos-accent);
+    }
+
+    .vos-arc-act:hover {
+        color: var(--vos-accent);
+        background: var(--vos-accent-soft);
+        border-color: color-mix(in srgb, var(--vos-accent) 40%, transparent);
+    }
+}
+
+@media (pointer: coarse) {
+    .vos-arc-act {
+        min-width: var(--ctl-h);
+        min-height: var(--ctl-h);
+    }
+}
+
+@container (max-width: 560px) {
+    .vosfor-ranking-section {
+        padding: 10px;
+    }
+
+    .vosfor-ranking-row {
+        gap: 8px;
+        padding: 8px;
+    }
+
+    .vosfor-rank-medal {
+        width: 24px;
+    }
+
+    .vosfor-rank-icon {
+        width: 44px;
+    }
+
+    .vosfor-ranking-row .vosfor-syndicate-img,
+    .vosfor-ranking-row .vosfor-arc-img {
+        width: 40px;
+        height: 40px;
+    }
+
+    .vosfor-ranking-row .vosfor-jade-img {
+        width: 44px !important;
+        height: 44px !important;
+    }
+
+    .vosfor-rank-name {
+        font-size: 0.84rem;
+        line-height: 1.25;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        overflow-wrap: break-word;
+    }
+
+    .vosfor-pix-widget {
+        padding: 10px 8px;
+    }
+
+    .vosfor-pix-list {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .vosfor-pix-row {
+        display: grid;
+        grid-template-columns: 24px 32px minmax(0, 1fr) auto;
+        column-gap: 6px;
+        row-gap: 2px;
+        padding: 7px 0;
+    }
+
+    .vosfor-pix-medal {
+        width: 24px;
+        grid-column: 1;
+        grid-row: 1 / 3;
+    }
+
+    .vosfor-pix-medal .vosfor-rank-medal {
+        width: auto;
+    }
+
+    .vosfor-pix-row > .vosfor-arc-img,
+    .vosfor-pix-row > .vosfor-pix-icon-slot {
+        grid-column: 2;
+        grid-row: 1 / 3;
+    }
+
+    .vosfor-pix-name {
+        grid-column: 3;
+        grid-row: 1;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        overflow-wrap: break-word;
+        line-height: 1.25;
+    }
+
+    .vosfor-pix-row > :nth-child(4) {
+        grid-column: 4;
+        grid-row: 1;
+    }
+
+    .vosfor-pix-row > :nth-child(5) {
+        grid-column: 3;
+        grid-row: 2;
+        text-align: left;
+    }
+
+    .vosfor-pix-row > :nth-child(6) {
+        grid-column: 4;
+        grid-row: 2;
+        text-align: right;
+    }
+
+    .vos-skel--cards {
+        grid-template-columns: 1fr;
+        --vos-skel-line-h: 5.3rem;
+    }
+}
+
+@container (min-width: 561px) {
+    .vos-skel--list {
+        --vos-skel-item-h: 6.1rem;
+    }
+
+    .vos-tab {
+        flex-direction: row;
+        gap: 6px;
+        padding: 11px 8px;
+        font-size: 0.76rem;
+        letter-spacing: 0.6px;
+    }
+
+    .vos-seg {
+        width: auto;
+        flex-wrap: nowrap;
+    }
+
+    .vos-seg-btn {
+        flex: 0 1 auto;
+        border-right: 1px solid var(--vos-border-ctl);
+        box-shadow: none;
+    }
+
+    .vos-seg-btn:last-child {
+        border-right: 0;
+    }
+
+    .vos-pack-head {
+        grid-template-columns: 32px minmax(0, 1fr) auto auto;
+        grid-template-areas: "ico main ev caret";
+        gap: 10px;
+        padding: 10px 12px 10px 14px;
+    }
+
+    .vos-pack-ev {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 3px;
+        align-items: flex-end;
+        justify-content: center;
+        text-align: right;
+    }
+
+    .vos-pack-body {
+        padding: 0 8px 10px;
+    }
+
+    .vos-arc-head {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) 142px 102px 86px;
+        column-gap: 6px;
+        padding: 4px 10px 4px 12px;
+    }
+
+    .vos-arc {
+        grid-template-columns: 32px minmax(0, 1fr) 142px 102px 86px;
+        grid-template-areas: "img nm pr ds vd";
+        column-gap: 6px;
+        row-gap: 0;
+        padding: 9px 8px 9px 10px;
+    }
+
+    .vos-arc-pr {
+        justify-content: flex-end;
+        text-align: right;
+    }
+
+    .vos-arc-pr .vos-col-price,
+    .vos-arc-ds .vos-col-dissolve {
+        white-space: nowrap;
+        font-size: 0.74rem;
+    }
+
+    .vos-arc-vd {
+        align-self: auto;
+    }
+}
+
+@container (min-width: 720px) {
+    .vos-pack-body {
+        padding: 0 12px 12px;
+    }
+
+    .vos-arc-head {
+        grid-template-columns: 32px minmax(0, 1fr) 172px 120px 94px;
+        column-gap: 12px;
+        padding: 4px 16px 4px 18px;
+    }
+
+    .vos-arc {
+        grid-template-columns: 32px minmax(0, 1fr) 172px 120px 94px;
+        column-gap: 12px;
+        padding: 9px 14px 9px 16px;
+    }
+
+    .vos-arc-pr .vos-col-price,
+    .vos-arc-ds .vos-col-dissolve {
+        font-size: 0.8rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vosfor-container *,
+    .vosfor-container *::before,
+    .vosfor-container *::after,
+    .vos-caret,
+    .vos-pack-loading {
+        animation: none !important;
+        transition: none !important;
     }
 }

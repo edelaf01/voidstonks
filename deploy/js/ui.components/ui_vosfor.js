@@ -6,7 +6,14 @@ import { escapeHTML } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { JADE_SHADOWS_IMG } from "../assets/jade_custom_img.js";
 import { initJadeCosmicEasterEgg } from "./ui_vosfor_jade.js";
-import { sindicatosCard, ordenSindicatos, setOrdenSindicatos } from "./ui_vosfor_sindicatos.js";
+import {
+    sindicatosCard,
+    sindicatosResultadosHtml,
+    ordenSindicatos,
+    setOrdenSindicatos,
+    filtroSindicatos,
+    setFiltroSindicatos,
+} from "./ui_vosfor_sindicatos.js";
 import { rentaSindicatos, slugsDeSindicatos } from "../utils/vosfor_sindicatos.js";
 import { targetSimProbabilities, copiesForMaxRank } from "../utils/vosfor_math.js";
 import {
@@ -33,7 +40,7 @@ import {
     arcaneUnitValue
 } from "../services/vosfor.service.js?v=2.7";
 
-const platIcon = (size = 13) => `<img src="assets/relic_contents/platinum.webp" style="width:${size}px;height:${size}px;vertical-align:middle;margin-left:2px;" alt="pl">`;
+const platIcon = (size = 13) => `<img src="assets/relic_contents/platinum.webp" class="vos-icon vos-icon--${size}" alt="pl">`;
 const PLAT = platIcon();
 
 // stores loaded URLs and final failures or re-renders restart broken image cascades
@@ -58,41 +65,38 @@ if (typeof window !== "undefined") {
 }
 
 function vosforIcon(size = 15) {
-    const style = `width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;margin-left:2px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));`;
+    const cls = `vos-icon vos-icon--vosfor vos-icon--${size}`;
     const cached = IMG_SRC_CACHE.get("vosfor");
-    if (cached) return `<img src="${cached}" style="${style}" alt="Vosfor" />`;
-    return `<img src="assets/relic_contents/vosfor.webp" data-imgkey="vosfor" onerror="this.onerror=null; this.src='https://warframe.market/static/assets/icons/en/thumbs/vosfor.png';" style="${style}" alt="Vosfor" />`;
+    if (cached) return `<img src="${cached}" class="${cls}" alt="Vosfor" />`;
+    return `<img src="assets/relic_contents/vosfor.webp" data-imgkey="vosfor" onerror="this.onerror=null; this.src='https://warframe.market/static/assets/icons/en/thumbs/vosfor.png';" class="${cls}" alt="Vosfor" />`;
 }
 
 function salesUnit() {
-    return state.currentLang === "es" ? "ventas" : "sales";
+    return vosT().salesUnit;
 }
 
 function creditsIcon(size = 13) {
-    const style = `width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;margin-left:2px;`;
+    const cls = `vos-icon vos-icon--${size}`;
     const cached = IMG_SRC_CACHE.get("credits");
-    if (cached) return `<img src="${cached}" style="${style}" alt="cr" />`;
-    return `<img src="assets/relic_contents/credits.webp" data-imgkey="credits" onerror="this.onerror=null; this.src='https://wiki.warframe.com/w/Special:FilePath/Credits.png';" style="${style}" alt="cr" />`;
+    if (cached) return `<img src="${cached}" class="${cls}" alt="cr" />`;
+    return `<img src="assets/relic_contents/credits.webp" data-imgkey="credits" onerror="this.onerror=null; this.src='https://wiki.warframe.com/w/Special:FilePath/Credits.png';" class="${cls}" alt="cr" />`;
 }
 
 function sellSpeedChip(avgVolume) {
     const t = vosT();
-    const es = state.currentLang === "es";
-    let label, css;
+    let label, cls;
     if (avgVolume >= 15) {
-        label = t.sellFast || "Venta rápida";
-        css = "color:#42f56c;border-color:rgba(66,245,108,0.4);background:rgba(66,245,108,0.08);";
+        label = t.sellFast;
+        cls = "vos-speed--fast";
     } else if (avgVolume >= 5) {
-        label = t.sellMed || "Venta media";
-        css = "color:#e0b040;border-color:rgba(224,176,64,0.4);background:rgba(224,176,64,0.08);";
+        label = t.sellMed;
+        cls = "vos-speed--med";
     } else {
-        label = t.sellSlow || "Venta lenta";
-        css = "color:#ff8866;border-color:rgba(255,136,102,0.35);background:rgba(255,136,102,0.08);";
+        label = t.sellSlow;
+        cls = "vos-speed--slow";
     }
-    const tip = es
-        ? `${avgVolume} ventas/día de media por arcano de esta colección`
-        : `${avgVolume} avg daily sales per arcane in this collection`;
-    return `<span title="${escapeHTML(tip)}" style="font-size:0.68rem;font-weight:700;border:1px solid;border-radius:4px;padding:1px 6px;${css}">${escapeHTML(label)}</span>`;
+    const tip = (t.sellSpeedTip || "").replace("{vol}", avgVolume);
+    return `<span title="${escapeHTML(tip)}" class="vos-speed-chip ${cls}">${escapeHTML(label)}</span>`;
 }
 
 let vosData = null;
@@ -102,15 +106,28 @@ let unsubscribe = null;
 let rerenderTimer = null;
 let packSort = "balanced";
 let searchQuery = "";
-let showGuide = false;
 
-const TOOL_KEYS = ["sell", "target", "ranking", "pix"];
-let openTools = new Set(["sell"]);
+const VOS_TABS = ["packs", "calc", "rank"];
+const VOS_SUBS = { calc: ["sell", "target"], rank: ["ranking", "pix", "sindicatos"] };
 
-try {
-    const saved = JSON.parse(localStorage.getItem("vosfor_open_tools") || "null");
-    if (Array.isArray(saved)) openTools = new Set(saved.filter((k) => TOOL_KEYS.includes(k)));
-} catch {}
+function loadVosPref(key, allowed, fallback) {
+    try {
+        const v = localStorage.getItem(key);
+        return allowed.includes(v) ? v : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function saveVosPref(key, value) {
+    try { localStorage.setItem(key, value); } catch {}
+}
+
+let activeTab = loadVosPref("vosfor_tab", VOS_TABS, "packs");
+const activeSub = {
+    calc: loadVosPref("vosfor_sub_calc", VOS_SUBS.calc, "sell"),
+    rank: loadVosPref("vosfor_sub_rank", VOS_SUBS.rank, "ranking")
+};
 
 let activeRankTab = "packs";
 let activeRankSubToggle = "r0";
@@ -152,7 +169,7 @@ const PACK_SYNDICATES = {
     },
     fortuna: {
         id: "solaris",
-        es: "Solaris United (Fortuna)",
+        es: "Solaris Unida (Fortuna)",
         en: "Solaris United (Fortuna)",
         icon: "pack_fortuna.webp",
         wikiIcon: "SolarisArcaneCollection",
@@ -264,7 +281,7 @@ function getArcaneOtherSyndicate(slug) {
 
 function syndicateIconHtml(wikiIcon, fallbackImg) {
     if ((fallbackImg && fallbackImg.includes("jade_shadows")) || (wikiIcon && wikiIcon.includes("JadeShadows"))) {
-        return `<img src="${JADE_SHADOWS_IMG}" class="vosfor-syndicate-img vosfor-jade-img" alt="Sombras de Jade" />`;
+        return `<img src="${JADE_SHADOWS_IMG}" class="vosfor-syndicate-img vosfor-jade-img" alt="${escapeHTML(vosT().jadeAlt)}" />`;
     }
     const key = `syn_${wikiIcon}`;
     const cached = IMG_SRC_CACHE.get(key);
@@ -274,6 +291,22 @@ function syndicateIconHtml(wikiIcon, fallbackImg) {
         : `assets/relic_contents/${fallbackImg}.webp`;
 
     return `<img src="${local}" data-imgkey="${key}" onerror="this.onerror=null; this.src='assets/relic_contents/forma.webp';" class="vosfor-syndicate-img" alt="" />`;
+}
+
+const SINDICATO_ICONOS = {
+    CetusSyndicate: { icon: "pack_cetus.webp", wikiIcon: "OstronArcaneCollection" },
+    EntratiLabSyndicate: { icon: "pack_albrechts_laboratories.webp", wikiIcon: "CaviaArcaneCollection" },
+    EventSyndicate: { icon: "syn_lotus.webp", wikiIcon: "Lotus" },
+    HexSyndicate: { icon: "syn_hex.webp", wikiIcon: "HexSyndicate" },
+    QuillsSyndicate: { icon: "pack_plains_of_eidolon.webp", wikiIcon: "EidolonArcaneCollection" },
+    SolarisSyndicate: { icon: "pack_fortuna.webp", wikiIcon: "SolarisArcaneCollection" },
+    VoxSyndicate: { icon: "ruvox.webp", wikiIcon: "VoxSolarisArcaneCollection" },
+    ZarimanSyndicate: { icon: "pack_zariman_and_lua.webp", wikiIcon: "HoldfastsArcaneCollection" },
+};
+
+function iconoSindicatoHtml(id) {
+    const m = SINDICATO_ICONOS[id] || SINDICATO_ICONOS.EventSyndicate;
+    return syndicateIconHtml(m.wikiIcon, m.icon);
 }
 
 function packIconPath(packId) {
@@ -318,8 +351,28 @@ function sortedPackItems(pack) {
     return items;
 }
 
-function vosT() {
-    return (TEXTS[state.currentLang] || {}).vosfor || TEXTS.es.vosfor || {};
+function vosT(key) {
+    const t = (TEXTS[state.currentLang] || {}).vosfor || TEXTS.es.vosfor || {};
+    return key ? (t[key] ?? "") : t;
+}
+
+function vosSkeleton(rows = 3, label, kind) {
+    const aria = escapeHTML(label || vosT("loadingAria"));
+    const mod = kind === "cards" || kind === "list" || kind === "page" ? ` vos-skel--${kind}` : "";
+    const rowCls = kind === "cards" ? "vos-skel-row vos-skel-card" : kind === "list" ? "vos-skel-row vos-skel-item" : "vos-skel-row";
+    const extra = kind === "cards" ? `<span class="vos-skel-row vos-skel-line" aria-hidden="true"></span>` : "";
+    const items = `<span class="${rowCls}" aria-hidden="true"></span>`.repeat(Math.min(rows, 20)) + extra;
+    return `<div class="vos-skel${mod}" role="status" aria-live="polite" aria-label="${aria}">${items}</div>`;
+}
+
+function vosState(kind, opts = {}) {
+    const { msg, hint, actionLabel, action } = opts;
+    const isErr = kind === "error";
+    const hintHtml = hint ? `<p class="vos-state-hint">${escapeHTML(hint)}</p>` : "";
+    const actHtml = action && actionLabel
+        ? `<button type="button" class="vos-btn" onclick="${action}">${escapeHTML(actionLabel)}</button>`
+        : "";
+    return `<div class="vos-state is-${isErr ? "error" : "empty"}" role="${isErr ? "alert" : "status"}"><p class="vos-state-msg">${escapeHTML(msg)}</p>${hintHtml}${actHtml}</div>`;
 }
 
 function packName(pack) {
@@ -331,16 +384,16 @@ function arcName(meta) {
 }
 
 const RARITY_STYLE = {
-    LEGENDARY: "color:#ffd76e;border-color:rgba(255,215,110,0.45);background:rgba(255,215,110,0.1);",
-    RARE: "color:#e8c88a;border-color:rgba(232,200,138,0.4);background:rgba(232,200,138,0.08);",
-    UNCOMMON: "color:#dcdcdc;border-color:rgba(220,220,220,0.35);background:rgba(220,220,220,0.08);",
-    COMMON: "color:#b8946c;border-color:rgba(184,148,108,0.4);background:rgba(184,148,108,0.08);",
+    LEGENDARY: "vos-bd--legendary",
+    RARE: "vos-bd--rare",
+    UNCOMMON: "vos-bd--uncommon",
+    COMMON: "vos-bd--common",
 };
 
 function rarityChip(rarity) {
     const t = vosT();
     const lbl = (t.rarities || {})[rarity] || rarity;
-    return `<span style="font-size:0.7rem;font-weight:600;border:1px solid;border-radius:4px;padding:1px 5px;${RARITY_STYLE[rarity] || ""}">${escapeHTML(lbl)}</span>`;
+    return `<span class="vos-bd ${RARITY_STYLE[rarity] || ""}">${escapeHTML(lbl)}</span>`;
 }
 
 function arcaneDropProbBadge(slug, parentPack) {
@@ -361,30 +414,30 @@ function arcaneDropProbBadge(slug, parentPack) {
     const singlePct = (singleProb * 100).toFixed(1);
     const packPct = (packProb * 100).toFixed(1);
 
-    const titleMsg = state.currentLang === "es"
-        ? `Probabilidad: ${singlePct}% por tirada ind. (${packPct}% por pack de 3 arcanos en ${packName(pack)})`
-        : `Drop Rate: ${singlePct}% per pull (${packPct}% per Loid pack of 3 in ${packName(pack)})`;
+    const titleMsg = (vosT().dropProbTip || "")
+        .replace("{single}", singlePct)
+        .replace("{pack}", packPct)
+        .replace("{name}", packName(pack));
 
-    return `<span title="${escapeHTML(titleMsg)}" style="font-size:0.7rem;font-weight:700;color:#7ecbff;border:1px solid rgba(126,203,255,0.35);border-radius:4px;padding:1px 5px;background:rgba(126,203,255,0.08);cursor:help;">Prob: ${packPct}%/pack</span>`;
+    return `<span title="${escapeHTML(titleMsg)}" class="vos-prob-badge">Prob: ${packPct}%/pack</span>`;
 }
 
 function liqBadge(slug) {
     const t = vosT();
     const liq = liquidityIndex(slug);
-    if (liq.level === "loading") return `<span style="font-size:0.72rem;color:var(--label-color);">…</span>`;
-    const styles = {
-        high: "color:#42f56c;border-color:rgba(66,245,108,0.4);background:rgba(66,245,108,0.1);",
-        med: "color:#e0b040;border-color:rgba(224,176,64,0.4);background:rgba(224,176,64,0.1);",
-        low: "color:#ff8866;border-color:rgba(255,136,102,0.35);background:rgba(255,136,102,0.08);",
-        none: "color:#888;border-color:rgba(130,130,130,0.3);background:rgba(130,130,130,0.08);",
+    if (liq.level === "loading") return `<span class="vos-liq-loading">…</span>`;
+    const classes = {
+        high: "vos-liq--high",
+        med: "vos-liq--med",
+        low: "vos-liq--low",
+        none: "vos-liq--none",
     };
     const labels = { high: t.liqHigh, med: t.liqMed, low: t.liqLow, none: t.liqNone };
-    const es = state.currentLang === "es";
-    const tipParts = [`${liq.volume} ${t.salesPerDay || "ventas/día"}`];
+    const tipParts = [`${liq.volume} ${t.salesPerDay}`];
     if (liq.maxRank > 0) tipParts.push(`R0: ${liq.volumeR0}/d · R${liq.maxRank}: ${liq.volumeMax}/d`);
-    if (liq.demand) tipParts.push(t.demandTip || (es ? "Hay compradores activos pagando cerca del precio de venta" : "Active buyers paying close to the sell price"));
-    const demandDot = liq.demand ? ` <span style="color:#7ecbff;">●</span>` : "";
-    return `<span title="${escapeHTML(tipParts.join(" · "))}" style="cursor:help;font-size:0.72rem;font-weight:600;border:1px solid;border-radius:4px;padding:1px 5px;${styles[liq.level]}">${escapeHTML(labels[liq.level] || "")} · ${liq.volume}/d${demandDot}</span>`;
+    if (liq.demand) tipParts.push(t.demandTip);
+    const demandDot = liq.demand ? ` <span class="vos-demand-dot">●</span>` : "";
+    return `<span title="${escapeHTML(tipParts.join(" · "))}" class="vos-bd vos-liq ${classes[liq.level] || ""}">${escapeHTML(labels[liq.level] || "")} · ${liq.volume}/d${demandDot}</span>`;
 }
 
 function fmtRate(rate) {
@@ -400,14 +453,12 @@ function rankingMedal(index) {
 
 function getDissolveTip(v, t, meta) {
     if (!v || v.dissolvePlat === undefined || v.dissolvePlat === null) return "";
-    const packName = state.currentLang === "es" ? v.bestPackEs : v.bestPackEn;
-    const template = t.dissolveSpentTip || (state.currentLang === "es"
-        ? "Disolver destruye el arcano y te da {vosfor} Vosfor. Gastado en packs de {pack} sale de media por ~{plat} pl, pero los arcanos del pack son al azar."
-        : "Dissolving destroys the arcane and gives you {vosfor} Vosfor. Spent on {pack} packs that's worth ~{plat} pl on average, but pack arcanes are random.");
+    const pName = state.currentLang === "es" ? v.bestPackEs : v.bestPackEn;
+    const template = t.dissolveSpentTip || "";
     return template
         .replace("{vosfor}", meta?.vosfor ?? "")
         .replace("{plat}", v.dissolvePlat.toFixed(1))
-        .replace("{pack}", packName || (state.currentLang === "es" ? "el mejor pack" : "the best pack"));
+        .replace("{pack}", pName || t.theBestPack);
 }
 
 
@@ -418,46 +469,46 @@ function rankingLeaderboardCard(spend) {
 
     const tabBtn = (id, lbl) => {
         const on = activeRankTab === id;
-        return `<button class="vosfor-ranking-nav-btn ${on ? "active" : ""}" onclick="setVosforRankTab('${id}')">${escapeHTML(lbl)}</button>`;
+        return `<button type="button" class="vos-seg-btn" aria-pressed="${on}" onclick="setVosforRankTab('${id}')">${escapeHTML(lbl)}</button>`;
     };
 
     const limitBtn = (num, lbl) => {
         const on = rankLimit === num;
-        return `<button class="vosfor-ranking-nav-btn ${on ? "active" : ""}" style="padding:2px 8px;font-size:0.72rem;" onclick="setVosforRankLimit(${num})">${escapeHTML(lbl)}</button>`;
+        return `<button type="button" class="vos-seg-btn" aria-pressed="${on}" onclick="setVosforRankLimit(${num})">${escapeHTML(lbl)}</button>`;
     };
 
     const nav = `
-      <div class="vosfor-ranking-nav">
-        ${tabBtn("packs", t.rankTabPacks || "Colecciones de Loid")}
-        ${tabBtn("sell", state.currentLang === "es" ? "Venta en Platino" : "Platinum Sales")}
-        ${tabBtn("dissolve", t.rankTabDissolve || "Mejor Disolver")}
-        ${tabBtn("buy", t.rankTabBuy || "Comprar para Vosfor")}
-        ${tabBtn("liq", t.rankTabLiq || "Los Más Vendidos")}
+      <div class="vos-seg vos-seg--wrap" role="group" aria-label="${escapeHTML(t.subRankAria)}">
+        ${tabBtn("packs", t.rankTabPacks)}
+        ${tabBtn("sell", t.rankTabSell)}
+        ${tabBtn("dissolve", t.rankTabDissolve)}
+        ${tabBtn("buy", t.rankTabBuy)}
+        ${tabBtn("liq", t.rankTabLiq)}
       </div>`;
 
     const subToggleBtn = (id, lbl) => {
         const on = activeRankSubToggle === id;
-        return `<button class="vosfor-ranking-nav-btn ${on ? "active" : ""}" style="padding:2px 8px;font-size:0.75rem;border-radius:4px;" onclick="setVosforRankSubToggle('${id}')">${escapeHTML(lbl)}</button>`;
+        return `<button type="button" class="vos-seg-btn" aria-pressed="${on}" onclick="setVosforRankSubToggle('${id}')">${escapeHTML(lbl)}</button>`;
     };
 
     let subToggleHtml = "";
     if (activeRankTab === "sell") {
         subToggleHtml = `
-          <div class="vosfor-ranking-nav" style="margin-top:6px;gap:4px;justify-content:center;">
-            <span style="font-size:0.75rem;color:#aaa;margin-right:4px;">${state.currentLang === "es" ? "Modo:" : "Mode:"}</span>
-            ${subToggleBtn("r0", state.currentLang === "es" ? "Copia Suelta (R0)" : "Single Copy (R0)")}
-            ${subToggleBtn("rmax", state.currentLang === "es" ? "Rango Máximo" : "Max Rank")}
+          <div class="vos-seg-row">
+            <span class="vos-mode-label">${escapeHTML(t.rankModeLabel)}</span>
+            ${subToggleBtn("r0", t.rankSubR0)}
+            ${subToggleBtn("rmax", t.rankSubRmax)}
           </div>
         `;
     }
 
     const limitNav = `
       ${subToggleHtml}
-      <div class="vosfor-ranking-nav" style="margin-left:auto;margin-top:6px;">
-        ${limitBtn(5, t.rankShowTop5 || "TOP 5")}
-        ${limitBtn(10, t.rankShowTop10 || "TOP 10")}
-        ${limitBtn(20, t.rankShowTop20 || "TOP 20")}
-        ${limitBtn(9999, t.rankShowAll || "Ver Todos")}
+      <div class="vos-seg">
+        ${limitBtn(5, t.rankShowTop5)}
+        ${limitBtn(10, t.rankShowTop10)}
+        ${limitBtn(20, t.rankShowTop20)}
+        ${limitBtn(9999, t.rankShowAll)}
       </div>`;
 
     let rowsHtml = "";
@@ -472,21 +523,19 @@ function rankingLeaderboardCard(spend) {
         rowsHtml = sortedPacks.map(({ pack, ev }, idx) => {
             const syn = PACK_SYNDICATES[pack.id] || PACK_SYNDICATES.others;
             return `
-              <div class="vosfor-ranking-row" onclick="toggleVosforPack('${pack.id}')" style="cursor:pointer;">
+              <button type="button" class="vosfor-ranking-row" onclick="toggleVosforPack('${pack.id}')">
                 ${rankingMedal(idx)}
                 <span class="vosfor-rank-icon">${syndicateIconHtml(syn.wikiIcon, syn.icon)}</span>
                 <div class="vosfor-rank-info">
                   <div class="vosfor-rank-name">${escapeHTML(packName(pack))}</div>
                 </div>
                 <div class="vosfor-rank-stat">
-                  <div class="vosfor-rank-val">${fmtRate(ev.rate)} <span style="font-size:0.75rem;font-weight:normal;color:#aaa;">${PLAT} / ${vosforIcon()}</span></div>
+                  <div class="vosfor-rank-val">${fmtRate(ev.rate)} <span class="vos-rank-unit">${PLAT} / ${vosforIcon()}</span></div>
                 </div>
-              </div>`;
+              </button>`;
         }).join("");
 
     } else {
-        const es = state.currentLang === "es";
-
         const dissolveRate = spend?.rate || 0;
 
         const loadedArcanes = Object.keys(vosData.arcanes)
@@ -510,9 +559,18 @@ function rankingLeaderboardCard(spend) {
             });
 
         const rarities = ["LEGENDARY", "RARE", "UNCOMMON", "COMMON"];
-        const rarityNamesEs = { LEGENDARY: "Legendarios", RARE: "Raros", UNCOMMON: "Poco Comunes", COMMON: "Comunes" };
-        const rarityNamesEn = { LEGENDARY: "Legendaries", RARE: "Rares", UNCOMMON: "Uncommons", COMMON: "Commons" };
-        const rarityColors = { LEGENDARY: "#d4af37", RARE: "#c59afc", UNCOMMON: "#aaccff", COMMON: "#cdcdcd" };
+        const rarityHeaderKey = {
+            LEGENDARY: "rarityHdrLegendary",
+            RARE: "rarityHdrRare",
+            UNCOMMON: "rarityHdrUncommon",
+            COMMON: "rarityHdrCommon",
+        };
+        const rarityHeaderClass = {
+            LEGENDARY: "vos-rarity-hdr--legendary",
+            RARE: "vos-rarity-hdr--rare",
+            UNCOMMON: "vos-rarity-hdr--uncommon",
+            COMMON: "vos-rarity-hdr--common",
+        };
 
         rowsHtml = "";
 
@@ -521,8 +579,8 @@ function rankingLeaderboardCard(spend) {
             : rarities.map((rarity) => ({
                 items: loadedArcanes.filter((item) => item.meta.rarity === rarity),
                 header: `
-              <div class="vosfor-rarity-header" style="color:${rarityColors[rarity]}; border-bottom:1px solid ${rarityColors[rarity]}40; padding-bottom:4px; margin-top:12px; margin-bottom:8px; font-weight:bold; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
-                ${es ? rarityNamesEs[rarity] : rarityNamesEn[rarity]}
+              <div class="vosfor-rarity-header ${rarityHeaderClass[rarity] || ""}">
+                ${escapeHTML(t[rarityHeaderKey[rarity]] || "")}
               </div>
             `,
             }));
@@ -557,92 +615,91 @@ function rankingLeaderboardCard(spend) {
             rowsHtml += limitedList.map(({ slug, meta, st, v, liq, de, vpp, vosfor }, idx) => {
                 let subText = "";
                 let mainVal = "";
-                let mainValStyle = "";
+                let mainValClass = "";
                 let extraNameHtml = "";
 
                 if (activeRankTab === "sell") {
                     const askNote = (ask, realizable) => (ask > 0 && ask !== realizable
-                        ? (es ? ` · pedido ${ask}${PLAT}` : ` · asking ${ask}${PLAT}`)
+                        ? ` · ${(t.rankAsking || "").replace("{pl}", `${ask}${PLAT}`)}`
                         : "");
-                    const realLbl = "realizable";
+                    const realLbl = t.rankRealizable;
                     if (activeRankSubToggle === "rmax") {
                         const maxR = v.maxRank;
                         const copiesMax = v.copiesMax;
+                        const atR = (t.rankAtR || "").replace("{r}", maxR);
                         const bonusText = v.r5RankBonus > 0
-                            ? (es ? ` (+${v.r5RankBonus}% en R${maxR})` : ` (+${v.r5RankBonus}% at R${maxR})`)
-                            : (v.r5RankBonus < 0 ? (es ? ` (${v.r5RankBonus}% en R${maxR})` : ` (${v.r5RankBonus}% at R${maxR})`) : "");
-                        subText = (es
-                            ? `Copia suelta R0: ${v.sell}${PLAT} · ${copiesMax} copias R0: ${v.sell21R0}${PLAT}${bonusText}`
-                            : `Single copy R0: ${v.sell}${PLAT} · ${copiesMax} copies R0: ${v.sell21R0}${PLAT}${bonusText}`)
+                            ? ` (+${v.r5RankBonus}% ${atR})`
+                            : (v.r5RankBonus < 0 ? ` (${v.r5RankBonus}% ${atR})` : "");
+                        subText = (t.rankSellRmaxSub || "")
+                            .replace("{r0}", `${v.sell}${PLAT}`)
+                            .replace("{copies}", copiesMax)
+                            .replace("{r0batch}", `${v.sell21R0}${PLAT}`)
+                            + bonusText
                             + askNote(st.pem, v.sellR5);
-                        mainVal = `${v.sellR5}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R${maxR} · ${realLbl})</span>`;
+                        mainVal = `${v.sellR5}${PLAT} <span class="vos-rank-tag">(R${maxR} · ${escapeHTML(realLbl)})</span>`;
                     } else {
                         const maxR = v.maxRank;
                         const bonusText = v.r5RankBonus > 0
-                            ? (es ? ` (Rinde más en R${maxR}: +${v.r5RankBonus}%)` : ` (Better at R${maxR}: +${v.r5RankBonus}%)`)
-                            : (v.r5RankBonus < 0 ? (es ? ` (Cuidado: pierdes ${Math.abs(v.r5RankBonus)}% al subir a R${maxR})` : ` (Warning: lose ${Math.abs(v.r5RankBonus)}% when upgrading to R${maxR})`) : "");
-                        subText = (es
-                            ? `Volumen: ${liq.volume} ventas/día${bonusText}`
-                            : `Volume: ${liq.volume} sales/day${bonusText}`)
+                            ? (t.rankBonusBetter || "").replace("{r}", maxR).replace("{pct}", v.r5RankBonus)
+                            : (v.r5RankBonus < 0 ? (t.rankBonusWarn || "").replace("{r}", maxR).replace("{pct}", Math.abs(v.r5RankBonus)) : "");
+                        subText = (t.rankSellR0Sub || "").replace("{vol}", liq.volume)
+                            + bonusText
                             + askNote(st.pe, v.sell);
-                        mainVal = `${v.sell}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R0 · ${realLbl})</span>`;
+                        mainVal = `${v.sell}${PLAT} <span class="vos-rank-tag">(R0 · ${escapeHTML(realLbl)})</span>`;
                     }
                 } else if (activeRankTab === "dissolve") {
                     const copiesMax = de.copiesMax;
                     const r0Txt = st.pe > 0
                         ? `R0 ${st.pe}${PLAT}`
-                        : escapeHTML(t.noMarket || "sin mercado");
+                        : escapeHTML(t.noMarket);
                     const rmaxTxt = st.pem > 0 && st.rm > 0 ? ` · R${st.rm} ${st.pem}${PLAT}` : "";
                     const batchEq = (de.dissolveValue * copiesMax).toFixed(1);
-                    subText = `${r0Txt}${rmaxTxt} · ${liq.volume}/${es ? "día" : "day"}`
+                    subText = `${r0Txt}${rmaxTxt} · ${liq.volume}/${escapeHTML(t.dayUnit)}`
                         + ` · ${copiesMax}x = ${vosfor * copiesMax}${vosforIcon(12)} ≈ ${batchEq}${PLAT}`;
 
                     extraNameHtml = (liq.level === "low" || liq.level === "none")
-                        ? ` <span style="font-size:0.62rem;color:#ff8866;border:1px solid rgba(255,136,102,0.35);border-radius:3px;padding:0 4px;">${es ? "POCA LIQUIDEZ" : "LOW LIQUIDITY"}</span>`
+                        ? ` <span class="vos-low-tag">${escapeHTML(t.lowLiquidityTag)}</span>`
                         : "";
 
                     mainVal = Number.isFinite(de.edge)
-                        ? `${de.edge.toFixed(1)}x <span style="font-size:0.72rem;font-weight:normal;color:#aaa;">${es ? "vs. venderla" : "vs. selling"}</span>`
-                        : `<span style="font-size:0.82rem;">${es ? "nada que perder" : "nothing to lose"}</span>`;
-                    mainValStyle = "color:#c59afc;";
+                        ? `${de.edge.toFixed(1)}x <span class="vos-rank-note">${escapeHTML(t.vsSelling)}</span>`
+                        : `<span class="vos-rank-nothing">${escapeHTML(t.nothingToLose)}</span>`;
+                    mainValClass = "vos-rank-val--accent";
                 } else if (activeRankTab === "buy") {
-                    const sellersTxt = vpp.sellers == null ? "" : es
-                        ? ` · ${vpp.sellers} ${vpp.sellers === 1 ? "vendedor" : "vendedores"}`
-                        : ` · ${vpp.sellers} ${vpp.sellers === 1 ? "seller" : "sellers"}`;
-                    subText = `R0 ${vpp.buyPrice}${PLAT}${sellersTxt} · ${liq.volume}/${es ? "día" : "day"}`
+                    const sellersTxt = vpp.sellers == null ? ""
+                        : ` · ${vpp.sellers} ${escapeHTML(vpp.sellers === 1 ? t.sellerOne : t.sellerMany)}`;
+                    subText = `R0 ${vpp.buyPrice}${PLAT}${sellersTxt} · ${liq.volume}/${escapeHTML(t.dayUnit)}`
                         + ` · ${PACK_COST}${vosforIcon(12)} ≈ ${Math.round(vpp.platPerPack)}${PLAT}`;
 
                     extraNameHtml = (vpp.sellers == null ? liq.volume < 1 : vpp.sellers <= 2)
-                        ? ` <span style="font-size:0.62rem;color:#ff8866;border:1px solid rgba(255,136,102,0.35);border-radius:3px;padding:0 4px;">${es ? "POCA OFERTA" : "LOW SUPPLY"}</span>`
+                        ? ` <span class="vos-low-tag">${escapeHTML(t.lowSupplyTag)}</span>`
                         : "";
 
-                    mainVal = `${vpp.ratio.toFixed(1)}${vosforIcon()}<span style="font-size:0.72rem;font-weight:normal;color:#aaa;">/${PLAT}</span>`;
-                    mainValStyle = "color:#c59afc;";
+                    mainVal = `${vpp.ratio.toFixed(1)}${vosforIcon()}<span class="vos-rank-note">/${PLAT}</span>`;
+                    mainValClass = "vos-rank-val--accent";
                 } else if (activeRankTab === "liq") {
                     const rankSplit = liq.maxRank > 0
                         ? `R0: ${liq.volumeR0}/d · R${liq.maxRank}: ${liq.volumeMax}/d`
                         : `R0: ${liq.volumeR0}/d`;
                     subText = `${rankSplit}`;
 
-                    const valText = es
-                        ? `${liq.volume} ventas/día`
-                        : `${liq.volume} sales/day`;
+                    const valText = (t.salesPerDayShort || "").replace("{vol}", liq.volume);
                     mainVal = escapeHTML(valText);
-                    mainValStyle = "color:#7ecbff;";
+                    mainValClass = "vos-rank-val--liquid";
                 }
 
                 return `
-                  <div class="vosfor-ranking-row">
+                  <div class="vosfor-ranking-row" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();(this.querySelector('a')||this).click();}">
                     ${rankingMedal(idx)}
                     ${arcaneImgHtml(slug, arcName(meta))}
                     <div class="vosfor-rank-info">
                       <div class="vosfor-rank-name">
-                        <a href="https://warframe.market/items/${escapeHTML(slug)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;" title="${es ? "Ver en Warframe Market" : "View on Warframe Market"}" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHTML(arcName(meta))}</a>${extraNameHtml}
+                        <a href="https://warframe.market/items/${escapeHTML(slug)}" target="_blank" rel="noopener noreferrer" class="vos-wfm-link" title="${escapeHTML(t.viewOnWfm)}">${escapeHTML(arcName(meta))}</a>${extraNameHtml}
                       </div>
                       <div class="vosfor-rank-sub">${subText}</div>
                     </div>
                     <div class="vosfor-rank-stat">
-                      <div class="vosfor-rank-val" style="${mainValStyle}">${mainVal}</div>
+                      <div class="vosfor-rank-val ${mainValClass}">${mainVal}</div>
                     </div>
                   </div>`;
             }).join("");
@@ -655,7 +712,7 @@ function rankingLeaderboardCard(spend) {
         ${nav}
         ${limitNav}
       </div>
-      <div class="vosfor-ranking-grid">${rowsHtml || `<div style="padding:10px;color:#888;font-size:0.84rem;">${state.currentLang === "es" ? "Cargando datos de ranking…" : "Loading ranking data…"}</div>`}</div>
+      <div class="vosfor-ranking-grid">${rowsHtml || vosSkeleton(rankLimit, t.rankingLoading, "list")}</div>
     </div>`;
 }
 
@@ -672,22 +729,19 @@ function targetProbHtml(packsNeeded, rollProb, sameRarityCount, t) {
     const probs = targetSimProbabilities(packsNeeded, rollProb, sameRarityCount, targetCopies);
     const expectedCopies = ((packsNeeded * 3) * (rollProb / Math.max(1, sameRarityCount))).toFixed(1);
 
-    const es = state.currentLang === "es";
-    const dupNote = es
-        ? "Las 3 tiradas de cada pack son independientes (pueden repetirse)."
-        : "The 3 rolls per pack are independent (can repeat).";
+    const targetPctCls = parseFloat(probs.pTargetPct) >= 50 ? "vos-text-best" : "vos-text-err-soft";
 
     return `
-      <div style="margin-bottom:8px;font-size:0.8rem;color:#e0e0e0;">
-        ${es ? `Obtendrás de media <b style="color:#ffd76e;">~${expectedCopies} copias</b> del arcano objetivo.` : `You will get <b style="color:#ffd76e;">~${expectedCopies} copies</b> on average.`}
+      <div class="vos-prob-avg">
+        ${(t.probAvgCopies || "").replace("{n}", expectedCopies)}
       </div>
-      <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:6px;padding:8px 10px;">
-        <div style="font-weight:700;color:#aaa;margin-bottom:4px;font-size:0.72rem;text-transform:uppercase;">${es ? "Desglose de Probabilidad (Binomial):" : "Probability Breakdown (Binomial):"}</div>
-        <ul style="margin:0;padding-left:18px;margin-bottom:6px;color:#ccc;">
-          <li>${es ? `<b style="color:#42f56c;">${probs.pAtLeastOnePct}%</b> de sacar al menos 1 copia` : `<b style="color:#42f56c;">${probs.pAtLeastOnePct}%</b> chance of at least 1 copy`}</li>
-          <li>${es ? `<b style="color:${parseFloat(probs.pTargetPct) >= 50 ? "#42f56c" : "#ff8888"};">${probs.pTargetPct}%</b> de lograr las ${targetCopies} copias` : `<b style="color:${parseFloat(probs.pTargetPct) >= 50 ? "#42f56c" : "#ff8888"};">${probs.pTargetPct}%</b> chance of reaching ${targetCopies} copies`}</li>
+      <div class="vos-prob-card">
+        <div class="vos-prob-title">${escapeHTML(t.probBreakdownTitle)}</div>
+        <ul class="vos-prob-list">
+          <li>${(t.probAtLeastOne || "").replace("{pct}", probs.pAtLeastOnePct)}</li>
+          <li>${(t.probReachTarget || "").replace("{cls}", targetPctCls).replace("{pct}", probs.pTargetPct).replace("{qty}", targetCopies)}</li>
         </ul>
-        <div style="font-size:0.7rem;color:#888;">${dupNote}</div>
+        <div class="vos-prob-note">${escapeHTML(t.probIndepNote)}</div>
       </div>
     `;
 }
@@ -720,23 +774,18 @@ function updateTargetSimDOM() {
     const creditsNeeded = packsNeeded * (curPack.cost?.credits || 50000);
 
     const targetArcName = targetMeta ? arcName(targetMeta) : "";
-    const copyUnit = targetCopies === 1 ? (t.targetSimCopy || "copia") : (t.targetSimCopies || "copias");
-    const maxR = targetMeta ? (targetMeta.maxRank ?? 5) : 5;
+    const copyUnit = targetCopies === 1 ? t.targetSimCopy : t.targetSimCopies;
     const copiesMax = copiesForMaxRank(targetMeta);
-    const rankLabel = targetCopies === copiesMax ? `(${t.targetSimRank5 || "Rango " + maxR})` : targetCopies === 1 ? `(${t.targetSimRank0 || "Rango 0"})` : "";
+    const rankLabel = targetCopies === copiesMax ? `(${t.targetSimRank5})` : targetCopies === 1 ? `(${t.targetSimRank0})` : "";
     const rarityLabel = (t.rarities || {})[targetRarity] || targetRarity;
     const st = ARC_STATS.get(targetArcSlug);
     const platOut = st ? Math.round(targetCopies * arcaneUnitValue(targetMeta, st)) : null;
 
     const explainRaw = targetCustomPacks !== null
-        ? (state.currentLang === "es"
-            ? "Con <b>{packs} packs de Loid</b> ({pulls} arcanos) en {pack}, tu probabilidad de conseguir <b>{qty}x {arcane}</b> ({rarity}) es:"
-            : "With <b>{packs} Loid packs</b> ({pulls} arcanes) in {pack}, your chance to obtain <b>{qty}x {arcane}</b> ({rarity}) is:")
-        : (t.targetSimExplanation || (state.currentLang === "es"
-            ? "Para conseguir <b>{qty}x {arcane}</b> ({rarity}) en {pack}, necesitas en promedio <b>{packs} packs</b> ({pulls} tiradas)."
-            : "To obtain <b>{qty}x {arcane}</b> ({rarity}) in {pack}, you need on average <b>{packs} packs</b> ({pulls} pulls)."));
+        ? t.targetSimCustomExplanation
+        : t.targetSimExplanation;
 
-    const explainText = explainRaw
+    const explainText = (explainRaw || "")
         .replace("{qty}", targetCopies)
         .replace("{arcane}", escapeHTML(targetArcName))
         .replace("{rarity}", escapeHTML(rarityLabel))
@@ -773,8 +822,8 @@ function updateTargetSimDOM() {
 
     container.querySelectorAll(".vosfor-target-preset-btn").forEach((btn) => {
         const val = parseInt(btn.getAttribute("data-preset"), 10);
-        if (val === targetCopies) btn.classList.add("active");
-        else btn.classList.remove("active");
+        btn.classList.toggle("active", val === targetCopies);
+        btn.setAttribute("aria-pressed", String(val === targetCopies));
     });
 }
 
@@ -789,9 +838,9 @@ function buildTargetDropdownItems(el) {
             items.push(`
               <div class="dropdown-item ${active}" data-slug="${slug}" data-pack="${p.id}" data-search="${escapeHTML((arcName(meta) + " " + packName(p)).toLowerCase())}" onclick="globalThis.selectTargetArcane('${slug}', '${p.id}')">
                 ${arcaneImgHtml(slug, arcName(meta))}
-                <div style="flex:1;min-width:0;margin-left:8px;">
-                  <div style="font-weight:700;font-size:0.88rem;">${escapeHTML(arcName(meta))}</div>
-                  <div style="font-size:0.74rem;">${escapeHTML(packName(p))} · ${rarityChip(meta.rarity)}</div>
+                <div class="vos-dd-body">
+                  <div class="vos-dd-title">${escapeHTML(arcName(meta))}</div>
+                  <div class="vos-dd-sub">${escapeHTML(packName(p))} · ${rarityChip(meta.rarity)}</div>
                 </div>
               </div>`);
         }
@@ -888,7 +937,7 @@ function targetArcaneSimulatorCard() {
 
     const btnPreset = (num, lbl) => {
         const on = targetCopies === num;
-        return `<button class="vosfor-preset-btn vosfor-target-preset-btn ${on ? "active" : ""}" data-preset="${num}" onclick="setTargetCopiesPreset(${num})">${escapeHTML(lbl)}</button>`;
+        return `<button type="button" class="vos-chip vosfor-target-preset-btn ${on ? "active" : ""}" aria-pressed="${on}" data-preset="${num}" onclick="setTargetCopiesPreset(${num})">${escapeHTML(lbl)}</button>`;
     };
 
     const maxR = targetMeta ? (targetMeta.maxRank ?? 5) : 5;
@@ -917,15 +966,13 @@ function targetArcaneSimulatorCard() {
 
     const targetArcName = targetMeta ? arcName(targetMeta) : "";
 
-    const copyUnit = targetCopies === 1 ? (t.targetSimCopy || "copia") : (t.targetSimCopies || "copias");
-    const rankLabel = targetCopies === copiesMax ? `(${t.targetSimRank5 || "Rango " + maxR})` : targetCopies === 1 ? `(${t.targetSimRank0 || "Rango 0"})` : "";
+    const copyUnit = targetCopies === 1 ? t.targetSimCopy : t.targetSimCopies;
+    const rankLabel = targetCopies === copiesMax ? `(${t.targetSimRank5})` : targetCopies === 1 ? `(${t.targetSimRank0})` : "";
     const rarityLabel = (t.rarities || {})[targetRarity] || targetRarity;
 
-    const explainRaw = t.targetSimExplanation || (state.currentLang === "es"
-        ? "Para conseguir <b>{qty}x {arcane}</b> ({rarity}) en {pack}, necesitas en promedio <b>{packs} packs</b> ({pulls} tiradas)."
-        : "To obtain <b>{qty}x {arcane}</b> ({rarity}) in {pack}, you need on average <b>{packs} packs</b> ({pulls} pulls).");
+    const explainRaw = t.targetSimExplanation || "";
 
-    const wfmLink = targetArcSlug ? `<a href="https://warframe.market/items/${escapeHTML(targetArcSlug)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;" title="${state.currentLang === "es" ? "Ver en Warframe Market" : "View on Warframe Market"}">${escapeHTML(targetArcName)}</a>` : escapeHTML(targetArcName);
+    const wfmLink = targetArcSlug ? `<a href="https://warframe.market/items/${escapeHTML(targetArcSlug)}" target="_blank" rel="noopener noreferrer" class="vos-wfm-link--underline" title="${escapeHTML(t.viewOnWfm)}">${escapeHTML(targetArcName)}</a>` : escapeHTML(targetArcName);
 
     const explainText = explainRaw
         .replace("{qty}", targetCopies)
@@ -939,56 +986,56 @@ function targetArcaneSimulatorCard() {
     <div id="vosfor-target-widget" class="vosfor-target-widget">
       <div class="vosfor-target-controls">
         <div>
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.targetSimPackLabel || "Colección:")}</label>
+          <label class="vos-ctl-label">${escapeHTML(t.targetSimPackLabel)}</label>
           <select class="wf-input vosfor-select" onchange="onTargetPackChange(this.value)">${packOptions}</select>
         </div>
-        <div style="position:relative;">
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.targetSimArcLabel || "Arcano Objetivo:")}</label>
-          <div class="custom-dropdown-container" style="position:relative;width:100%;">
-            <input type="text" id="targetArcInput" class="wf-input vosfor-search-input" style="padding-right:30px;" placeholder="${escapeHTML(state.currentLang === "es" ? "Buscar arcano..." : "Search arcane...")}" autocomplete="off" value="${escapeHTML(targetArcName)}" onfocus="globalThis.showTargetArcDropdown()" oninput="globalThis.filterTargetArcDropdown(this.value)">
-            <div id="targetArcDropdown" class="custom-dropdown hidden" style="position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;background:#111;border:1px solid var(--active-theme-color);z-index:9999;border-radius:0 0 6px 6px;box-shadow:0 6px 20px rgba(0,0,0,0.7);">
+        <div class="vos-rel">
+          <label class="vos-ctl-label">${escapeHTML(t.targetSimArcLabel)}</label>
+          <div class="custom-dropdown-container vos-dd-wrap">
+            <input type="text" id="targetArcInput" class="wf-input vosfor-search-input vos-input-pr" placeholder="${escapeHTML(t.searchArcanePlaceholder)}" autocomplete="off" value="${escapeHTML(targetArcName)}" onfocus="globalThis.showTargetArcDropdown()" oninput="globalThis.filterTargetArcDropdown(this.value)">
+            <div id="targetArcDropdown" class="custom-dropdown vos-dropdown-menu hidden">
             </div>
           </div>
         </div>
-        <div style="grid-column: span 1;">
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:2px;text-align:left;">${escapeHTML(t.targetSimQtyLabel || "Copias que te faltan:")}</label>
-          <div style="text-align:left;margin-bottom:6px;">
-            <span id="target-qty-badge" style="color:var(--vosfor-accent-text);font-weight:bold;font-size:0.9rem;">${targetCopies} ${escapeHTML(copyUnit)} ${escapeHTML(rankLabel)}</span>
+        <div class="vos-col-span-1">
+          <label class="vos-ctl-label vos-ctl-label--tight">${escapeHTML(t.targetSimQtyLabel)}</label>
+          <div class="vos-qty-badge-row">
+            <span id="target-qty-badge" class="vos-qty-badge">${targetCopies} ${escapeHTML(copyUnit)} ${escapeHTML(rankLabel)}</span>
           </div>
           <input id="target-copies-slider" type="range" class="vosfor-slider" min="1" max="${Math.max(copiesMax * 2, targetCopies * 2, 42)}" step="1" value="${targetCopies}" oninput="onTargetCopiesChange(this.value)">
-          <div class="vosfor-preset-group" style="margin-top:4px;justify-content:space-between;">
+          <div class="vosfor-preset-group vos-preset-group--spread">
             ${presetsHtml}
           </div>
         </div>
       </div>
       <div class="vosfor-stat-cards">
         <div class="vosfor-stat-card">
-          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimVosforNeed || "Vosfor Necesario")}</div>
+          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimVosforNeed)}</div>
           <div id="target-val-vosfor" class="vosfor-stat-card-val"><span id="target-val-vosfor-num">${vosforNeeded.toLocaleString()}</span> ${vosforIcon()}</div>
         </div>
         <div class="vosfor-stat-card">
-          <div class="vosfor-stat-card-label" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>${escapeHTML(t.targetSimPullsNeed || "Tiradas (Packs Loid)")}</span>
-            <span style="font-size:0.65rem;color:var(--vosfor-accent-text);">${state.currentLang === "es" ? "Modificable" : "Editable"}</span>
+          <div class="vosfor-stat-card-label vos-stat-label-row">
+            <span>${escapeHTML(t.targetSimPullsNeed)}</span>
+            <span class="vos-editable-tag">${escapeHTML(t.editable)}</span>
           </div>
-          <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;">
-            <input id="target-pulls-input" type="number" class="vosfor-calc-input" style="width:75px;font-size:1.05rem;padding:2px 4px;text-align:center;color:#ffffff;border-color:color-mix(in srgb, var(--active-theme-color) 40%, transparent);" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${state.currentLang === "es" ? `Modifica el número de tiradas/packs de Loid (${PACK_COST} Vosfor = 3 arcanos)` : `Modify Loid packs/pulls (${PACK_COST} Vosfor = 3 arcanes)`}">
-            <span style="font-size:0.8rem;color:#aaa;">(<span id="target-val-pulls">${pullsNeeded.toLocaleString()}</span> ${state.currentLang === "es" ? "arcanos" : "arcanes"})</span>
+          <div class="vos-pulls-row">
+            <input id="target-pulls-input" type="number" class="vosfor-calc-input vos-pulls-input" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${escapeHTML((t.targetSimPullsTip || "").replace("{cost}", PACK_COST))}">
+            <span class="vos-pulls-count">(<span id="target-val-pulls">${pullsNeeded.toLocaleString()}</span> ${escapeHTML(t.arcanes)})</span>
           </div>
         </div>
         <div class="vosfor-stat-card">
-          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimCreditsNeed || "Créditos")}</div>
-          <div id="target-val-credits" class="vosfor-stat-card-val" style="color:#ffd76e;"><span id="target-val-credits-num">${(creditsNeeded / 1000000).toFixed(2)}M</span> ${creditsIcon(15)}</div>
+          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimCreditsNeed)}</div>
+          <div id="target-val-credits" class="vosfor-stat-card-val vos-text-gold"><span id="target-val-credits-num">${(creditsNeeded / 1000000).toFixed(2)}M</span> ${creditsIcon(15)}</div>
         </div>
         <div class="vosfor-stat-card">
-          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimPlatNeed || "Platino Neto")}</div>
-          <div id="target-val-plat" class="vosfor-stat-card-val" style="color:#42f56c;"><span id="target-val-plat-num">${platOut !== null ? platOut.toLocaleString() : "…"}</span>${PLAT}</div>
+          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimPlatNeed)}</div>
+          <div id="target-val-plat" class="vosfor-stat-card-val vos-text-best"><span id="target-val-plat-num">${platOut !== null ? platOut.toLocaleString() : "…"}</span>${PLAT}</div>
         </div>
       </div>
-      <div id="target-explain-box" style="font-size:0.75rem;color:#888;margin-top:8px;">
+      <div id="target-explain-box" class="vos-target-explain">
         ${explainText} ${escapeHTML(t.targetSimProbNote || "")}.
       </div>
-      <div id="target-prob-box" style="font-size:0.75rem;color:#aaa;margin-top:4px;line-height:1.4;">
+      <div id="target-prob-box" class="vos-target-prob">
         ${targetProbHtml(packsNeeded, rollProb, sameRarityItems.length, t)}
       </div>
     </div>`;
@@ -1044,13 +1091,14 @@ function updateSellSimDOM() {
     if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = sellQty;
 
     document.querySelectorAll(".vosfor-sell-rank-btn").forEach((btn) => {
-        btn.classList.toggle("active", btn.getAttribute("data-rank") === sellRank);
+        const on = btn.getAttribute("data-rank") === sellRank;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", String(on));
         if (btn.getAttribute("data-rank") === "max" && m) {
             btn.textContent = `R${m.maxRank} (max)`;
         }
     });
 
-    const es = state.currentLang === "es";
     const isFailed = m && !m.st && FAILED_STATS.has(sellArcSlug);
     const signature = m && m.st
         ? [sellArcSlug, sellRank, sellQty, sellRatePackId, m.sim.verdict, m.bestRate ? fmtRate(m.bestRate.rate) : "-", m.unitPrice > 0 ? 1 : 0, state.currentLang].join("|")
@@ -1060,39 +1108,39 @@ function updateSellSimDOM() {
         lastSellSignature = signature;
 
         if (!m) {
-            box.innerHTML = `<div style="font-size:0.82rem;color:#888;padding:8px 0;">${escapeHTML(t.sellSimPick || "Elige un arcano para calcular su venta.")}</div>`;
+            box.innerHTML = `<div class="vos-sell-msg">${escapeHTML(t.sellSimPick)}</div>`;
             return;
         }
         if (!m.st) {
             if (isFailed) {
-                box.innerHTML = `<div class="state-error"><span>${escapeHTML(t.noMarketPrice || "Sin precio de mercado")}</span><button type="button" class="state-retry">${escapeHTML(t.retry || "Reintentar")}</button></div>`;
+                box.innerHTML = `<div class="state-error"><span>${escapeHTML(t.noMarketPrice)}</span><button type="button" class="state-retry">${escapeHTML(t.retry)}</button></div>`;
                 box.querySelector(".state-retry")?.addEventListener("click", () => retryArcaneStats(sellArcSlug));
                 return;
             }
-            box.innerHTML = `<div style="font-size:0.82rem;color:#888;padding:8px 0;">${escapeHTML(t.loadingPrices || "Cargando precios")}…</div>`;
+            box.innerHTML = vosSkeleton(3, t.loadingPrices, "cards");
             return;
         }
 
-        const noMarket = `<span style="color:#888;font-size:0.8rem;">${escapeHTML(t.noMarket || "sin mercado")}</span>`;
+        const noMarket = `<span class="vos-sell-nomarket">${escapeHTML(t.noMarket)}</span>`;
 
         const ratePackName = m.bestRate ? packName(m.bestRate.pack) : "";
         const rateNote = m.bestRate
             ? (m.bestRate.custom
-                ? (es ? `gastándolo en ${ratePackName}` : `spending it on ${ratePackName}`)
-                : (es ? `gastándolo en el mejor pack, ${ratePackName}` : `spending it on the best pack, ${ratePackName}`))
-            : (es ? "esperando precios de packs…" : "waiting for pack prices…");
+                ? (t.sellSimSpendCustom || "").replace("{pack}", ratePackName)
+                : (t.sellSimSpendBest || "").replace("{pack}", ratePackName))
+            : t.sellSimWaitPacks;
 
         const verdictMap = {
-            sell_r0: { txt: t.verdictSellR0 || "VENDER R0", css: "verdict-sell" },
-            sell_max: { txt: `${t.verdictSell || "VENDER"} R${m.maxRank}`, css: "verdict-sell" },
-            dissolve: { txt: t.verdictDissolve || "DISOLVER", css: "verdict-dissolve" },
-            even: { txt: t.verdictEven || "PAREJO", css: "verdict-even" },
-            nodata: { txt: t.verdictNoData || "Sin datos", css: "verdict-even" },
+            sell_r0: { txt: t.verdictSellR0, css: "verdict-sell" },
+            sell_max: { txt: `${t.verdictSell} R${m.maxRank}`, css: "verdict-sell" },
+            dissolve: { txt: t.verdictDissolve, css: "verdict-dissolve" },
+            even: { txt: t.verdictEven, css: "verdict-even" },
+            nodata: { txt: t.verdictNoData, css: "verdict-even" },
             pending: { txt: "…", css: "verdict-even" },
         };
         const vd = verdictMap[m.sim.verdict] || verdictMap.pending;
 
-        const optMergeLabel = (t.sellSimOptMerge || "Juntar en R{rank} ({copies} copias)")
+        const optMergeLabel = (t.sellSimOptMerge || "")
             .replace("{rank}", m.maxRank)
             .replace("{copies}", m.sim.copiesMax);
 
@@ -1102,29 +1150,34 @@ function updateSellSimDOM() {
             ? (remCopies > 0 ? `${fullSets}× R${m.maxRank} + ${remCopies}× R0` : `${fullSets}× R${m.maxRank}`)
             : `${m.sim.totalCopies}/${m.sim.copiesMax} R0`;
 
+        const unitNote = (t.sellSimUnitNote || "")
+            .replace("{rank}", m.maxRank)
+            .replace("{copies}", m.sim.copiesMax)
+            .replace("{vosfor}", m.meta.vosfor);
+
         box.innerHTML = `
           <div class="vosfor-stat-cards">
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimOptR0 || "Vender sueltas (R0)")} (<span data-f="r0qty">${m.sim.totalCopies}× R0</span>)</div>
-              <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.sim.sellR0Value > 0 ? `<span data-f="saler0">${Math.round(m.sim.sellR0Value)}</span>${PLAT}` : noMarket}</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimOptR0)} (<span data-f="r0qty">${m.sim.totalCopies}× R0</span>)</div>
+              <div class="vosfor-stat-card-val vos-text-best">${m.sim.sellR0Value > 0 ? `<span data-f="saler0">${Math.round(m.sim.sellR0Value)}</span>${PLAT}` : noMarket}</div>
             </div>
             <div class="vosfor-stat-card">
               <div class="vosfor-stat-card-label">${escapeHTML(optMergeLabel)}</div>
-              <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.sim.mergeValue !== null && m.sim.mergeValue > 0 ? `<span data-f="salemerge">${Math.round(m.sim.mergeValue)}</span>${PLAT}` : noMarket}</div>
-              <div data-f="mergedetail" style="font-size:0.66rem;color:#888;">${escapeHTML(mergeDetail)}</div>
+              <div class="vosfor-stat-card-val vos-text-best">${m.sim.mergeValue !== null && m.sim.mergeValue > 0 ? `<span data-f="salemerge">${Math.round(m.sim.mergeValue)}</span>${PLAT}` : noMarket}</div>
+              <div data-f="mergedetail" class="vos-sell-sub">${escapeHTML(mergeDetail)}</div>
             </div>
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimOptDissolve || "Disolver en Loid")}</div>
-              <div class="vosfor-stat-card-val" style="color:var(--vosfor-accent-text);"><span data-f="equiv">${m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…"}</span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
-              <div style="font-size:0.66rem;color:#c59afc;"><span data-f="tvos">${m.sim.totalVosfor.toLocaleString()}</span>${vosforIcon(12)}</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimOptDissolve)}</div>
+              <div class="vosfor-stat-card-val vos-text-accent"><span data-f="equiv">${m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…"}</span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
+              <div class="vos-sell-sub--accent"><span data-f="tvos">${m.sim.totalVosfor.toLocaleString()}</span>${vosforIcon(12)}</div>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
-            <span class="verdict-tag ${vd.css}" style="font-size:0.85rem;">${escapeHTML(vd.txt)}</span>
-            <span style="font-size:0.76rem;color:#999;">${escapeHTML(es ? "Vender vs disolver" : "Sell vs dissolve")} ${escapeHTML(rateNote)}</span>
+          <div class="vos-sell-verdict-row">
+            <span class="verdict-tag ${vd.css} vos-verdict-tag--lg">${escapeHTML(vd.txt)}</span>
+            <span class="vos-sell-verdict-note">${escapeHTML(t.sellVsDissolve)} ${escapeHTML(rateNote)}</span>
           </div>
-          <div style="font-size:0.74rem;color:#888;margin-top:6px;"><span data-f="liq"></span>${PLAT}</div>
-          <div style="font-size:0.72rem;color:var(--label-color);margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.sim.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.sim.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
+          <div class="vos-sell-liq-row"><span data-f="liq"></span>${PLAT}</div>
+          <div class="vos-sell-unit-note">${escapeHTML(unitNote)}</div>`;
     }
 
     if (!m || !m.st) return;
@@ -1139,58 +1192,65 @@ function updateSellSimDOM() {
     if (m.sim.mergeValue !== null) set("salemerge", Math.round(m.sim.mergeValue));
     set("tvos", m.sim.totalVosfor.toLocaleString());
     set("equiv", m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…");
-    set("liq", es
-        ? `Liquidez ${rankLbl}: ${m.volume} ventas/día · mejor compra activa: ${m.bestBuy}`
-        : `${rankLbl} liquidity: ${m.volume} sales/day · best active buy: ${m.bestBuy}`);
+    set("liq", (t.sellSimLiqLine || "")
+        .replace("{rank}", rankLbl)
+        .replace("{vol}", m.volume)
+        .replace("{buy}", m.bestBuy));
+}
+
+function ensureSellArcSlug() {
+    if (!vosData?.arcanes) return "";
+    if (!sellArcSlug || !vosData.arcanes[sellArcSlug]) {
+        sellArcSlug = Object.keys(vosData.arcanes).sort()[0] || "";
+    }
+    return sellArcSlug;
 }
 
 function sellSimulatorCard() {
     const t = vosT();
     if (!vosData || !vosData.arcanes) return "";
 
-    if (!sellArcSlug || !vosData.arcanes[sellArcSlug]) {
-        sellArcSlug = Object.keys(vosData.arcanes).sort()[0] || "";
-    }
+    ensureSellArcSlug();
     const meta = vosData.arcanes[sellArcSlug];
     const maxRank = Math.min(meta?.maxRank ?? 5, 5);
     const selName = meta ? arcName(meta) : "";
 
     const rankBtn = (r, lbl) => `
-      <button class="vosfor-preset-btn vosfor-sell-rank-btn ${sellRank === r ? "active" : ""}" data-rank="${r}" onclick="setSellRank('${r}')">${escapeHTML(lbl)}</button>`;
+      <button type="button" class="vos-seg-btn vosfor-sell-rank-btn ${sellRank === r ? "active" : ""}" aria-pressed="${sellRank === r}" data-rank="${r}" onclick="setSellRank('${r}')">${escapeHTML(lbl)}</button>`;
 
     return `
-    <div id="vosfor-sell-widget" class="vosfor-target-widget" style="border-color:rgba(66,245,108,0.5); box-shadow: 0 4px 20px rgba(66,245,108,0.15);">
+    <div id="vosfor-sell-widget" class="vosfor-target-widget vos-sell-widget">
       <div class="vosfor-target-controls">
-        <div style="position:relative;">
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.sellSimArcLabel || "Arcano:")}</label>
-          <div class="custom-dropdown-container" style="position:relative;width:100%;">
-            <input type="text" id="sellArcInput" class="wf-input vosfor-search-input" style="padding-right:30px;" placeholder="${escapeHTML(state.currentLang === "es" ? "Buscar arcano..." : "Search arcane...")}" autocomplete="off" value="${escapeHTML(selName)}" onfocus="globalThis.showSellArcDropdown()" oninput="globalThis.filterSellArcDropdown(this.value)">
-            <div id="sellArcDropdown" class="custom-dropdown hidden" style="position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;background:#111;border:1px solid #42f56c;z-index:9999;border-radius:0 0 6px 6px;box-shadow:0 6px 20px rgba(0,0,0,0.7);"></div>
+        <div class="vos-rel">
+          <label class="vos-ctl-label">${escapeHTML(t.sellSimArcLabel)}</label>
+          <div class="custom-dropdown-container vos-dd-wrap">
+            <input type="text" id="sellArcInput" class="wf-input vosfor-search-input vos-input-pr" placeholder="${escapeHTML(t.searchArcanePlaceholder)}" autocomplete="off" value="${escapeHTML(selName)}" onfocus="globalThis.showSellArcDropdown()" oninput="globalThis.filterSellArcDropdown(this.value)">
+            <div id="sellArcDropdown" class="custom-dropdown vos-dropdown-menu vos-dropdown-menu--sell hidden"></div>
           </div>
         </div>
         <div>
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.sellSimRankLabel || "Rango:")}</label>
-          <div class="vosfor-preset-group">
+          <label class="vos-ctl-label">${escapeHTML(t.sellSimRankLabel)}</label>
+          <div class="vos-seg vos-seg--fill" role="group" aria-label="${escapeHTML(t.sellSimRankLabel)}">
             ${rankBtn("r0", "R0")}
             ${rankBtn("max", `R${maxRank} (max)`)}
           </div>
         </div>
         <div>
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:2px;">${escapeHTML(t.sellSimQtyLabel || "Cantidad:")} <span id="sell-qty-badge" style="color:#42f56c;font-weight:bold;">x${sellQty}</span></label>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <input id="sell-qty-slider" type="range" class="vosfor-slider" min="1" max="${Math.max(50, sellQty * 2)}" step="1" value="${sellQty}" style="flex:1;" oninput="onSellQtyChange(this.value)">
-            <input id="sell-qty-input" type="number" class="vosfor-calc-input" style="width:70px;" min="1" max="99999" value="${sellQty}" oninput="onSellQtyChange(this.value)">
+          <label class="vos-ctl-label vos-ctl-label--mb2">${escapeHTML(t.sellSimQtyLabel)} <span id="sell-qty-badge" class="vos-sell-qty-badge">x${sellQty}</span></label>
+          <div class="vos-sell-qty-row">
+            <input id="sell-qty-slider" type="range" class="vosfor-slider vos-flex-1" min="1" max="${Math.max(50, sellQty * 2)}" step="1" value="${sellQty}" oninput="onSellQtyChange(this.value)">
+            <input id="sell-qty-input" type="number" class="vosfor-calc-input vos-sell-qty-input" min="1" max="99999" value="${sellQty}" oninput="onSellQtyChange(this.value)">
           </div>
         </div>
         <div>
-          <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.sellSimRatePackLabel || (state.currentLang === "es" ? "Gastar el Vosfor en:" : "Spend the Vosfor on:"))}</label>
+          <label class="vos-ctl-label">${escapeHTML(t.sellSimRatePackLabel)}</label>
           <select class="wf-input vosfor-select" onchange="globalThis.onSellRatePackChange(this.value)">
-            <option value="auto" ${sellRatePackId === "auto" ? "selected" : ""}>${escapeHTML(state.currentLang === "es" ? "Auto (mejor colección)" : "Auto (best collection)")}</option>
+            <option value="auto" ${sellRatePackId === "auto" ? "selected" : ""}>${escapeHTML(t.sellSimRatePackAuto)}</option>
             ${sortedPacksByRate().map((p) => `<option value="${p.id}" ${p.id === sellRatePackId ? "selected" : ""}>${escapeHTML(packName(p))}</option>`).join("")}
           </select>
         </div>
       </div>
-      <div id="sell-sim-results" style="margin-top:8px;"></div>
+      <div id="sell-sim-results" class="vos-mt-8"></div>
     </div>`;
 }
 
@@ -1213,9 +1273,9 @@ function buildSellDropdownItems(el) {
         return `
           <div class="dropdown-item ${active}" data-search="${escapeHTML((arcName(am) + " " + slug).toLowerCase())}" onclick="globalThis.selectSellArcane('${slug}')">
             ${arcaneImgHtml(slug, arcName(am))}
-            <div style="flex:1;min-width:0;margin-left:8px;">
-              <div style="font-weight:700;font-size:0.88rem;">${escapeHTML(arcName(am))}</div>
-              <div style="font-size:0.74rem;">${rarityChip(am.rarity)} · ${am.vosfor}${vosforIcon()}</div>
+            <div class="vos-dd-body">
+              <div class="vos-dd-title">${escapeHTML(arcName(am))}</div>
+              <div class="vos-dd-sub">${rarityChip(am.rarity)} · ${am.vosfor}${vosforIcon()}</div>
             </div>
           </div>`;
     }).join("");
@@ -1269,77 +1329,90 @@ export function onSellQtyChange(val) {
     }
 }
 
-function bestActionBadge(v, meta) {
+function bestActionBadge(v, slug) {
     if (!v || v.bestAction === "pending" || v.bestAction === undefined) {
-        return `<span style="font-size:0.72rem;color:#888;">…</span>`;
+        return `<span class="vos-pending-dots">…</span>`;
     }
     const t = vosT();
     const map = {
-        sell_r0: { txt: t.verdictSellR0, css: "verdict-sell" },
-        sell_max: { txt: `${t.verdictSell} R${v.maxRank}`, css: "verdict-sell" },
-        dissolve: { txt: t.verdictDissolve, css: "verdict-dissolve" },
-        even: { txt: t.verdictEven, css: "verdict-even" },
-        nodata: { txt: t.verdictNoData, css: "verdict-even" },
+        sell_r0: t.verdictSellR0,
+        sell_max: `${t.verdictSell} R${v.maxRank}`,
+        dissolve: t.verdictDissolve,
+        even: t.verdictEven,
+        nodata: t.verdictNoData,
     };
-    const m = map[v.bestAction] || map.even;
+    const txt = map[v.bestAction] || map.even;
+    const level = liquidityIndex(slug).level;
+    const lvl = level === "high" ? "high" : level === "med" ? "med" : "low";
+    let tip;
     if (v.bestAction === "nodata") {
-        const ndTip = t.verdictNoDataTip || "";
-        return `<span class="verdict-tag ${m.css}" data-tooltip="${escapeHTML(ndTip)}" style="cursor:help;">${escapeHTML(m.txt)}</span>`;
+        tip = t.verdictNoDataTip || "";
+    } else {
+        const dissolveVal = (v.netDissolveAdj ?? v.dissolvePlat21 ?? 0).toFixed(1);
+        tip = (t.verdictBatchTip || "")
+            .replaceAll("{copies}", v.copiesMax)
+            .replace("{rank}", v.maxRank)
+            .replace("{r5}", v.sellR5)
+            .replace("{r0}", v.sell)
+            .replace("{dissolve}", dissolveVal);
     }
-    const dissolveVal = (v.netDissolveAdj ?? v.dissolvePlat21 ?? 0).toFixed(1);
-    const tip = (t.verdictBatchTip || "")
-        .replaceAll("{copies}", v.copiesMax)
-        .replace("{rank}", v.maxRank)
-        .replace("{r5}", v.sellR5)
-        .replace("{r0}", v.sell)
-        .replace("{dissolve}", dissolveVal);
     let warn = "";
     if (v.gambleWarning) {
         const wtip = (t.gambleTip || "").replace("{plat}", v.guaranteedBest);
-        warn = ` <span data-tooltip="${escapeHTML(wtip)}" style="cursor:help;color:#ffb300;font-weight:700;font-size:0.62rem;border:1px solid rgba(255,179,0,0.5);border-radius:3px;padding:0 3px;">${escapeHTML(t.gambleTag || "GAMBLE")}</span>`;
+        warn = ` <span class="vos-gamble" data-tooltip="${escapeHTML(wtip)}">${escapeHTML(t.gambleTag)}</span>`;
     }
-    return `<span class="verdict-tag ${m.css}" data-tooltip="${escapeHTML(tip)}" style="cursor:help;">${escapeHTML(m.txt)}</span>${warn}`;
+    return `<span class="vos-verdict vos-verdict--${lvl} vos-help" tabindex="0" data-tooltip="${escapeHTML(tip)}">${escapeHTML(txt)}</span>${warn}`;
+}
+
+function arcaneSigClass(v) {
+    if (!v) return "sig-even";
+    if (v.bestAction === "sell_r0" || v.bestAction === "sell_max") return "sig-sell";
+    if (v.bestAction === "dissolve") return "sig-dissolve";
+    return "sig-even";
 }
 
 function arcaneRow(slug, spend, parentPack) {
     const t = vosT();
-    const es = state.currentLang === "es";
     const meta = vosData.arcanes[slug];
     if (!meta) return "";
     const st = ARC_STATS.get(slug);
     const v = arcaneVerdict(slug, vosData.arcanes, spend);
 
-    let priceCell = `<span style="color:var(--label-color);">…</span>`;
+    let priceCell = `<span class="vos-price-loading">…</span>`;
     if (st) {
         const r0 = st.pe || 0;
         const rmax = st.pem || 0;
         const parts = [];
         parts.push(r0 > 0
-            ? `R0 <b style="color:#fff;">${r0}</b>${PLAT}`
-            : `<span style="color:#888;">${escapeHTML(t.noMarket || "sin mercado")}</span>`);
-        if (rmax > 0 && st.rm > 0) parts.push(`R${st.rm} <b style="color:#fff;">${rmax}</b>${PLAT}`);
-        priceCell = `<span style="font-size:0.8rem;color:#aaa;">${parts.join(" · ")}</span>`;
+            ? `R0 <b>${r0}</b>${PLAT}`
+            : `<span class="vos-nomarket">${escapeHTML(t.noMarket)}</span>`);
+        if (rmax > 0 && st.rm > 0) parts.push(`R${st.rm} <b>${rmax}</b>${PLAT}`);
+        priceCell = `<span class="vos-col-price">${parts.join(" · ")}</span>`;
     }
 
     const dissolveTip = getDissolveTip(v, t, meta);
     const dissolveCell = v.dissolvePlat !== null && v.dissolvePlat !== undefined && st
-        ? `<span data-tooltip="${escapeHTML(dissolveTip)}" style="color:#c59afc;font-weight:700;cursor:help;font-size:0.8rem;">${meta.vosfor}${vosforIcon()} ≈ ${v.dissolvePlat.toFixed(1)}${PLAT}</span>`
-        : `<span style="color:#c59afc;font-weight:700;font-size:0.8rem;">${meta.vosfor}${vosforIcon()}</span>`;
+        ? `<span data-tooltip="${escapeHTML(dissolveTip)}" class="vos-col-dissolve vos-help">${meta.vosfor}${vosforIcon()} ≈ ${v.dissolvePlat.toFixed(1)}${PLAT}</span>`
+        : `<span class="vos-col-dissolve">${meta.vosfor}${vosforIcon()}</span>`;
+
+    const nm = escapeHTML(arcName(meta));
+    const href = `https://warframe.market/items/${escapeHTML(slug)}`;
 
     return `
-    <div class="vosfor-arc-row">
-      <div class="vosfor-arc-main-line">
-        ${arcaneImgHtml(slug, arcName(meta))}
-        <div class="vosfor-arc-info">
-          <div class="vosfor-arc-name">
-            <a href="https://warframe.market/items/${escapeHTML(slug)}" target="_blank">${escapeHTML(arcName(meta))}</a>
-          </div>
-          <div class="vosfor-arc-chips">${rarityChip(meta.rarity)}${liqBadge(slug)}</div>
+    <div class="vos-arc ${arcaneSigClass(v)}">
+      <div class="vos-arc-img">${arcaneImgHtml(slug, arcName(meta))}</div>
+      <div class="vos-arc-nm">
+        <a class="vos-arc-link" href="${href}" target="_blank" rel="noopener">${nm}</a>
+        <div class="vos-arc-meta">
+          ${rarityChip(meta.rarity)}${liqBadge(slug)}
+          <span class="vos-arc-acts">
+            <button type="button" class="vos-arc-act" title="${escapeHTML(t.simulateTip)}" onclick="simulateArcane('${escapeHTML(slug)}')">${escapeHTML(t.simulate)}</button>
+          </span>
         </div>
-        <div class="vosfor-arc-price-col">${priceCell}</div>
-        <div class="vosfor-arc-dissolve-col">${dissolveCell}</div>
-        <div class="vosfor-arc-verdict-col">${bestActionBadge(v, meta)}</div>
       </div>
+      <div class="vos-arc-pr">${priceCell}</div>
+      <div class="vos-arc-ds">${dissolveCell}</div>
+      <div class="vos-arc-vd">${bestActionBadge(v, slug)}</div>
     </div>`;
 }
 
@@ -1357,24 +1430,23 @@ function searchResultsCard(spend) {
     });
 
     if (!matchingSlugs.length) {
-        return `
-        <div class="vosfor-guide-box" style="margin-top:10px;border-color:rgba(255,100,100,0.3);">
-          <div style="color:#ff8888;font-size:0.88rem;font-weight:bold;">
-            ${escapeHTML(state.currentLang === "es" ? `No se encontraron arcanos para "${searchQuery}"` : `No arcanes found for "${searchQuery}"`)}
-          </div>
-        </div>`;
+        return vosState("noresults", {
+            msg: (t.searchNoResults || "").replace("{q}", searchQuery),
+            actionLabel: t.searchClear,
+            action: "onVosforSearchClear()",
+        });
     }
 
     const rows = matchingSlugs.map((slug) => arcaneRow(slug, spend)).join("");
 
     return `
-    <div class="vosfor-ranking-section" style="margin-top:10px;border-color:color-mix(in srgb, var(--active-theme-color) 45%, transparent);background:linear-gradient(135deg, rgba(20,20,28,0.9) 0%, rgba(12,12,18,0.95) 100%);">
+    <div class="vosfor-ranking-section vos-search-results">
       <div class="vosfor-ranking-header">
-        <div class="vosfor-ranking-title" style="color:var(--vosfor-accent-text);">
-          ${escapeHTML(state.currentLang === "es" ? "Resultados de Búsqueda" : "Search Results")} (${matchingSlugs.length} ${matchingSlugs.length === 1 ? (t.targetSimCopy || "arcano") : (t.targetSimCopies || "arcanos")})
+        <div class="vosfor-ranking-title vos-text-accent">
+          ${escapeHTML(t.searchResultsTitle)} (${matchingSlugs.length} ${escapeHTML(matchingSlugs.length === 1 ? t.targetSimCopy : t.targetSimCopies)})
         </div>
       </div>
-      <div style="background:rgba(0,0,0,0.3);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.05);">${rows}</div>
+      <div class="vos-rows-box">${rows}</div>
     </div>`;
 }
 
@@ -1388,24 +1460,25 @@ function packHighlights(pack, bestRate) {
 
     const sellList = bySell
         .filter((s) => (ARC_STATS.get(s).pe || 0) > 0)
-        .map((s) => `<span style="white-space:nowrap;">${name(s)} <b style="color:#42f56c;">${ARC_STATS.get(s).pe}${PLAT}</b></span>`)
+        .map((s) => `<span class="vos-nowrap">${name(s)} <b class="vos-text-best">${ARC_STATS.get(s).pe}${PLAT}</b></span>`)
         .join(" · ");
 
     const byVosforValue = [...loaded]
         .sort((a, b) => (vosData.arcanes[b].vosfor || 0) - (vosData.arcanes[a].vosfor || 0))
         .slice(0, 3)
-        .map((s) => `<span style="white-space:nowrap;">${name(s)} <b style="color:#c59afc;">${vosData.arcanes[s].vosfor}${vosforIcon()}</b></span>`)
+        .map((s) => `<span class="vos-nowrap">${name(s)} <b class="vos-text-accent">${vosData.arcanes[s].vosfor}${vosforIcon()}</b></span>`)
         .join(" · ");
 
     return `
     <div class="vosfor-highlights">
-      <div><span style="color:#42f56c;font-weight:bold;">${escapeHTML(t.bestToSell || "Más plat por venta:")}</span> ${sellList || "-"}</div>
-      <div><span style="color:#c59afc;font-weight:bold;">${escapeHTML(t.bestToDissolve || "Más Vosfor al disolver:")}</span> ${byVosforValue}</div>
+      <div><span class="vos-hl-sell">${escapeHTML(t.bestToSell)}</span> ${sellList || "-"}</div>
+      <div><span class="vos-hl-dissolve">${escapeHTML(t.bestToDissolve)}</span> ${byVosforValue}</div>
     </div>`;
 }
 
 
 function renderOthersGrouped(pack, spend) {
+    const t = vosT();
     const items = sortedPackItems(pack);
     const groups = {};
 
@@ -1432,17 +1505,64 @@ function renderOthersGrouped(pack, spend) {
             ? `<div class="hunhow-meme-quote">"I , am Hunhow.Sirius, Orion, stop fighting... fetch me my remote, Pop Pop wants to watch NASCAR." <span class="hunhow-author">- Hunhow</span></div>`
             : "";
         html += `
-          <div class="vosfor-syndicate-group-header ${extraClass}" ${isJadeGroup ? 'onclick="globalThis.toggleHunhowMemeQuote(this)" title="Clic para alternar frase de Hunhow"' : ''}>
+          <div class="vosfor-syndicate-group-header ${extraClass}" ${isJadeGroup ? `onclick="globalThis.toggleHunhowMemeQuote(this)" title="${escapeHTML(t.jadeToggle)}"` : ""}>
             ${easterEggHtml}
             ${syndicateIconHtml(g.info.wikiIcon, g.info.icon)}
-            <div style="z-index:2;position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
+            <div class="vos-syn-grp-info">
               <span>${escapeHTML(synName)} (${g.slugs.length})</span>
               ${hunhowQuoteHtml}
             </div>
           </div>
-          <div style="background:rgba(0,0,0,0.3);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.05);margin-bottom:8px;">${rows}</div>`;
+          <div class="vos-rows-box vos-rows-box--mb">${rows}</div>`;
     }
-    return html || `<div style="padding:12px;color:#888;font-size:0.85rem;">${state.currentLang === "es" ? "No se encontraron arcanos con ese nombre." : "No arcanes found with that name."}</div>`;
+    return html || vosState("empty", { msg: t.othersNoResults });
+}
+
+export function packBodyHtml(pack, bestRate = bestPackRate(vosData)) {
+    if (!vosData) return "";
+    const t = vosT();
+    const isOthers = pack.id === "others";
+    const itemsMatching = sortedPackItems(pack);
+
+    const sortBtn = (v, lbl, short) => {
+        const on = packSort === v;
+        const label = short
+            ? `<span class="vos-lbl-long">${escapeHTML(lbl)}</span><span class="vos-lbl-short" title="${escapeHTML(lbl)}">${escapeHTML(short)}</span>`
+            : escapeHTML(lbl);
+        return `<button type="button" class="vos-seg-btn" aria-pressed="${on}" onclick="setVosforSort('${v}')">${label}</button>`;
+    };
+    const sortBar = `
+      <div class="vos-sort-bar">
+        <span class="vos-sort-label">${escapeHTML(t.sortBy)}</span>
+        <div class="vos-seg vos-seg--wrap" role="group" aria-label="${escapeHTML(t.sortAria)}">
+          ${sortBtn("balanced", t.sortBalanced)}${sortBtn("price", t.sortPrice)}${sortBtn("rarity", t.sortRarity)}${sortBtn("vosfor", t.sortVosfor)}${sortBtn("liq", t.sortLiq, t.sortLiqShort)}
+        </div>
+      </div>`;
+
+    const header = `
+      <div class="vos-arc-head" aria-hidden="true">
+        <span>${escapeHTML(t.hdrArcane)}</span>
+        <span>${escapeHTML(t.hdrPrice)}</span>
+        <span>${escapeHTML(t.hdrDissolve)}</span>
+        <span>${escapeHTML(t.hdrVerdict)}</span>
+      </div>`;
+
+    if (isOthers) {
+        return `
+          <div class="vos-mt-8">
+            ${sortBar}
+            ${header}
+            ${renderOthersGrouped(pack, bestRate)}
+          </div>`;
+    }
+    const rows = itemsMatching.map((s) => arcaneRow(s, bestRate, pack)).join("");
+    return `
+      <div class="vos-mt-8">
+        ${packHighlights(pack, bestRate)}
+        ${sortBar}
+        ${header}
+        <div class="vos-rows-box">${rows}</div>
+      </div>`;
 }
 
 function packCard(pack, bestRate) {
@@ -1465,26 +1585,26 @@ function packCard(pack, bestRate) {
     if (isOthers) {
         evHtml = ev.ready
             ? ""
-            : `<span style="font-size:0.78rem;color:#888;">${escapeHTML(t.loadingPrices || "Cargando precios")} ${ev.loaded}/${ev.total}</span>`;
+            : `<span class="vos-pack-loading">${escapeHTML(t.loadingPrices)} ${ev.loaded}/${ev.total}</span>`;
     } else if (ev.ready) {
-        const rateColor = isBestEv ? "#42f56c" : "#e0e0e0";
-        const netPlatTxt = escapeHTML((t.packNetPlat || "{pl}{platIcon} netos por {cost}{vosIcon}")
+        const rateCls = isBestEv ? "vos-rate-val--best" : "vos-rate-val--normal";
+        const netPlatTxt = escapeHTML((t.packNetPlat || "")
             .replace("{pl}", Math.round(ev.evPlat))
             .replace("{cost}", cost))
             .replace("{platIcon}", PLAT)
             .replace("{vosIcon}", vosforIcon());
         evHtml = `
-          <div class="vosfor-rate-val" style="color:${rateColor};">
+          <span class="vos-pack-rate ${rateCls}">
             ${netPlatTxt}
-          </div>
-          <div class="vosfor-ev-detail" style="display:flex;justify-content:flex-end;">
+          </span>
+          <span class="vos-ev-detail-end">
             ${sellSpeedChip(ev.avgVolume)}
-          </div>`;
+          </span>`;
         if (ev.top && ev.top.packsForMax !== null) {
             const topMeta = vosData.arcanes[ev.top.slug];
             const topName = topMeta ? arcName(topMeta) : ev.top.slug;
             const topRank = Math.min(topMeta?.maxRank ?? 5, 5);
-            const topLine = escapeHTML((t.packTopArcane || "Mejor arcano: {name}. R{rank} cada ~{packs} packs ({vosfor}{vosIcon}) → {pl}{platIcon} netos")
+            const topLine = escapeHTML((t.packTopArcane || "")
                 .replace("{name}", topName)
                 .replace("{rank}", topRank)
                 .replace("{packs}", Math.round(ev.top.packsForMax).toLocaleString())
@@ -1492,128 +1612,83 @@ function packCard(pack, bestRate) {
                 .replace("{pl}", Math.round(ev.top.netMax).toLocaleString()))
                 .replace("{platIcon}", PLAT)
                 .replace("{vosIcon}", vosforIcon(13));
-            topHtml = `<div class="vosfor-pack-sub" style="margin-top:2px;color:#ccc;">${topLine}</div>`;
+            topHtml = `<span class="vos-pack-sub vos-pack-top">${topLine}</span>`;
         }
     } else {
-        evHtml = `<span style="font-size:0.78rem;color:#888;">${escapeHTML(t.loadingPrices || "Cargando precios")} ${ev.loaded}/${ev.total}</span>`;
+        evHtml = `<span class="vos-pack-loading">${escapeHTML(t.loadingPrices)} ${ev.loaded}/${ev.total}</span>`;
     }
 
     const bestEvTag = isBestEv
-        ? `<span class="badge-vosfor badge-best-spend">${escapeHTML(t.bestPack || "MEJOR GASTO")}</span>`
+        ? `<span class="badge-vosfor badge-best-spend">${escapeHTML(t.bestPack)}</span>`
         : "";
 
-    let body = "";
-    if (isOpen) {
-        const sortBtn = (v, lbl) => {
-            const on = packSort === v;
-            return `<button class="vosfor-sort-btn ${on ? "active" : ""}" onclick="setVosforSort('${v}')">${escapeHTML(lbl)}</button>`;
-        };
-        const sortBar = `
-          <div class="vosfor-sort-bar">
-            <span class="vosfor-sort-label">${escapeHTML(t.sortBy || "Ordenar")}</span>
-            <div class="vosfor-sort-group">
-              ${sortBtn("balanced", t.sortBalanced || "Balanceado")}${sortBtn("price", t.sortPrice || "Venta")}${sortBtn("rarity", t.sortRarity || "Rareza")}${sortBtn("vosfor", t.sortVosfor || "Vosfor")}${sortBtn("liq", t.sortLiq || "Liquidez")}
-            </div>
-          </div>`;
-
-        const header = `
-          <div class="vosfor-table-header">
-            <div style="flex:1.5;">${escapeHTML(t.colArcane || "Arcano / liquidez")}</div>
-            <div style="flex:1;text-align:right;">${escapeHTML(t.colSell || "Venta R0 / Rmax")}</div>
-            <div style="flex:1;text-align:right;">${escapeHTML(t.colDissolve || "Al disolver")}</div>
-            <div style="flex:0 0 85px;text-align:right;">${escapeHTML(t.colVerdict || "Veredicto")}</div>
-          </div>`;
-
-        if (isOthers) {
-            body = `
-              <div style="margin-top:8px;">
-                ${sortBar}
-                ${header}
-                ${renderOthersGrouped(pack, bestRate)}
-              </div>`;
-        } else {
-            const rows = itemsMatching.map((s) => arcaneRow(s, bestRate, pack)).join("");
-            body = `
-              <div style="margin-top:8px;">
-                ${packHighlights(pack, bestRate)}
-                ${sortBar}
-                ${header}
-                <div style="background:rgba(0,0,0,0.3);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.05);">${rows}</div>
-              </div>`;
-        }
-    }
+    const body = isOpen ? packBodyHtml(pack, bestRate) : "";
 
     const synName = state.currentLang === "es" ? syn.es : syn.en;
 
     return `
-    <div class="vosfor-pack-card ${isOpen ? "expanded" : ""}">
-      <div class="vosfor-pack-header" onclick="toggleVosforPack('${pack.id}')">
+    <section class="vos-pack${isBestEv ? " is-best" : ""}">
+      <button type="button" class="vos-pack-head" aria-expanded="${isOpen ? "true" : "false"}" aria-controls="vosfor-pack-body-${pack.id}" onclick="toggleVosforPack('${pack.id}')">
         ${syndicateIconHtml(syn.wikiIcon, syn.icon)}
-        <div style="flex:1;min-width:0;">
-          <div class="vosfor-pack-title">
-            ${isOthers ? escapeHTML(t.othersTitle || "Otros arcanos") : escapeHTML(packName(pack))}
+        <span class="vos-pack-main">
+          <span class="vos-pack-nm">
+            ${isOthers ? escapeHTML(t.othersTitle) : escapeHTML(packName(pack))}
             ${bestEvTag}
-          </div>
-          <div class="vosfor-pack-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span style="color:var(--vosfor-accent-text);font-weight:600;">${escapeHTML(synName)}</span>
-            <span>· ${pack.items.length} ${escapeHTML(t.arcanes || "arcanos")}</span>
+          </span>
+          <span class="vos-pack-sub vos-pack-sub-row">
+            <span class="vos-pack-syn-name">${escapeHTML(synName)}</span>
+            <span>· ${pack.items.length} ${escapeHTML(t.arcanes)}</span>
             ${isOthers ? "" : `<span>· ${cost}${vosforIcon()} + ${(pack.cost.credits / 1000)}k${creditsIcon()}</span>`}
-          </div>
+          </span>
           ${topHtml}
-        </div>
-        <div class="vosfor-pack-ev">${evHtml}</div>
-        <span style="color:var(--vosfor-accent-text);font-size:1rem;margin-left:6px;">${isOpen ? "▲" : "▼"}</span>
-      </div>
-      ${body}
-    </div>`;
+        </span>
+        <span class="vos-pack-ev">${evHtml}</span>
+        <span class="vos-caret" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      </button>
+      <div class="vos-pack-body" id="vosfor-pack-body-${pack.id}">${body}</div>
+    </section>`;
+}
+
+function guideSeen() {
+    try {
+        return localStorage.getItem("vosfor_guide_seen") !== null;
+    } catch (e) {
+        return false;
+    }
+}
+
+function markGuideSeen() {
+    try {
+        localStorage.setItem("vosfor_guide_seen", "1");
+    } catch (e) {
+        return;
+    }
 }
 
 function guideBoxCard() {
     const t = vosT();
-    const bodyStyle = showGuide ? "display:block;" : "display:none;";
-    const toggleLabel = showGuide ? (t.guideHide || "Ocultar Guía") : (t.guideShow || "Ver Guía");
+    const steps = [1, 2, 3, 4, 5].map((n) => `
+          <div class="vos-guide-item">
+            <b>${escapeHTML(t[`guideStep${n}Title`] || "")}</b>
+            ${escapeHTML(t[`guideStep${n}Desc`] || "")}
+          </div>`).join("");
     return `
-    <div class="vosfor-guide-box">
-      <div class="vosfor-guide-title" onclick="toggleVosforGuide()" style="cursor:pointer;">
-        <span>${escapeHTML(t.guideTitle || "Guía Rápida: ¿Cómo sacarle el máximo partido a tu Vosfor?")}</span>
-        <span style="margin-left:auto;font-size:0.85rem;color:var(--vosfor-accent-text);font-weight:700;">${showGuide ? "▲" : "▼"} ${escapeHTML(toggleLabel)}</span>
+    <details class="vos-guide"${guideSeen() ? "" : " open"} ontoggle="globalThis.onVosforGuideToggle()">
+      <summary class="vos-guide-sum">${escapeHTML(t.guideTitle)}</summary>
+      <div class="vos-guide-note">${escapeHTML(t.guideR5Note || "")}</div>
+      <div class="vos-guide-grid">${steps}
       </div>
-      <div style="${bodyStyle}">
-        <div style="font-size:0.8rem;color:#ccc;margin-top:8px;margin-bottom:8px;">${escapeHTML(t.guideR5Note || "")}</div>
-        <div class="vosfor-guide-grid">
-          <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep1Title || "")}</b>
-            ${escapeHTML(t.guideStep1Desc || "")}
-          </div>
-          <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep2Title || "")}</b>
-            ${escapeHTML(t.guideStep2Desc || "")}
-          </div>
-          <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep3Title || "")}</b>
-            ${escapeHTML(t.guideStep3Desc || "")}
-          </div>
-          <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep4Title || "")}</b>
-            ${escapeHTML(t.guideStep4Desc || "")}
-          </div>
-          <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep5Title || "")}</b>
-            ${escapeHTML(t.guideStep5Desc || "")}
-          </div>
-        </div>
-      </div>
-    </div>`;
+    </details>`;
 }
 
 function searchAndControlsBar() {
     const t = vosT();
 
     return `
-    <div class="vosfor-search-bar" style="display:flex; flex-wrap:wrap; gap:8px;">
-      <input type="text" id="arcaneInput" class="wf-input vosfor-search-input" style="flex:1;min-width:200px;" placeholder="${escapeHTML(t.searchPlaceholder || "Buscar arcano por nombre (ej. Energize, Crescendo)...")}" autocomplete="off" value="${escapeHTML(searchQuery)}" oninput="globalThis.onVosforSearchInput(this.value)">
-      <button class="vosfor-preset-btn" style="padding:6px 12px;font-size:0.8rem;" onclick="toggleVosforExpandAll()">
-        ${expandAllPacks ? escapeHTML(t.collapseAll || "Contraer Todo") : escapeHTML(t.expandAll || "Desplegar Todo")}
+    <div class="vosfor-search-bar vos-search-bar-row">
+      <input type="text" id="arcaneInput" class="wf-input vosfor-search-input vos-search-input" placeholder="${escapeHTML(t.searchPlaceholder)}" autocomplete="off" value="${escapeHTML(searchQuery)}" oninput="globalThis.onVosforSearchInput(this.value)">
+      <button type="button" class="vos-btn vos-expand-all-btn" onclick="toggleVosforExpandAll()">
+        ${expandAllPacks ? escapeHTML(t.collapseAll) : escapeHTML(t.expandAll)}
       </button>
     </div>`;
 }
@@ -1621,14 +1696,13 @@ function searchAndControlsBar() {
 function pixCard(bestRate) {
     if (!vosData?.hex_pix) return "";
     const t = vosT();
-    const es = state.currentLang === "es";
     const pr = pixRank(vosData, bestRate);
 
     const rows = pr.rows.map((r, i) => {
         const name = arcName(r.meta);
         const vals = r.ready
             ? `<span class="vosfor-pix-val"><b>${r.platPerPix}</b>${PLAT}/pix</span><span class="vosfor-pix-val vosfor-pix-dim">· R0 ${r.sellR0}${PLAT}</span><span class="vosfor-pix-val vosfor-pix-dim">· ${r.pix} pix</span>`
-            : `<span class="vosfor-pix-val vosfor-pix-dim">${escapeHTML(t.loading || "…")}</span><span></span><span></span>`;
+            : `<span class="vosfor-pix-val vosfor-pix-dim">${escapeHTML(t.loading)}</span><span></span><span></span>`;
         return `<div class="vosfor-pix-row">
             <span class="vosfor-pix-medal">${rankingMedal(i)}</span>
             ${arcaneImgHtml(r.slug, name)}
@@ -1640,45 +1714,85 @@ function pixCard(bestRate) {
     const vosforRow = `<div class="vosfor-pix-row vosfor-pix-row--vosfor">
         <span class="vosfor-pix-medal">${vosforIcon(15)}</span>
         <span class="vosfor-pix-icon-slot" aria-hidden="true"></span>
-        <span class="vosfor-pix-name">${escapeHTML(es ? `Gastar pix en vosfor (${PACK_COST} = 6 pix)` : `Spend pix on vosfor (${PACK_COST} = 6 pix)`)}</span>
+        <span class="vosfor-pix-name">${escapeHTML((t.pixSpendOnVosfor || "").replace("{cost}", PACK_COST))}</span>
         <span class="vosfor-pix-val"><b>${pr.vosforPlatPerPix}</b>${PLAT}/pix</span>
         <span></span>
         <span></span>
     </div>`;
 
     const verdict = pr.ready
-        ? (pr.arcaneBeatsVosfor
-            ? (es ? "Comprar el arcano de arriba y revenderlo rinde más plat por pix que gastar los pix en vosfor." : "Buying the top arcane and reselling it yields more plat per pix than spending the pix on vosfor.")
-            : (es ? "Gastar los pix en vosfor rinde más plat que comprar estos arcanos para revender." : "Spending pix on vosfor yields more plat than buying these arcanes to resell."))
-        : (es ? "Cargando precios en vivo de The Hex…" : "Loading The Hex live prices…");
+        ? (pr.arcaneBeatsVosfor ? t.pixVerdictArcane : t.pixVerdictVosfor)
+        : t.pixLoading;
 
-    // one root element: grid-template-rows:0fr only collapses the first grid row
     return `
       <div class="vosfor-pix-widget">
-        <div style="font-size:0.72rem;color:#bbb;margin-bottom:6px;">${escapeHTML(es ? `Cada arcano cuesta 5 pix a R0; ${PACK_COST} vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo).` : `Each arcane costs 5 pix at R0; ${PACK_COST} vosfor cost 6 pix. Realizable sale price (not the raw listing).`)}</div>
+        <div class="vos-pix-intro">${escapeHTML((t.pixExplain || "").replace("{cost}", PACK_COST))}</div>
         <div class="vosfor-pix-list">
           ${rows}
           ${vosforRow}
         </div>
-        <div style="font-size:0.74rem;color:#cbb3e0;margin-top:8px;">${escapeHTML(verdict)}</div>
+        <div class="vos-pix-verdict">${escapeHTML(verdict)}</div>
       </div>`;
 }
 
-export async function renderVosforTab() {
-    const box = document.getElementById("vosfor-content");
-    if (!box) return;
+function getPackById(packId) {
+    if (!vosData) return null;
+    return packId === "others" ? othersPack(vosData) : vosData.packs.find((p) => p.id === packId) || null;
+}
+
+function sindicatosDatos(bestRate = bestPackRate(vosData)) {
+    if (!vosData) return [];
+    return rentaSindicatos(vosData, {
+        stats: ARC_STATS,
+        precioSuelto: realizableR0,
+        precioMax: realizableMax,
+        tasaPl: bestRate?.rate || 0,
+        orden: ordenSindicatos(),
+    });
+}
+
+function sindicatosCtx() {
     const t = vosT();
+    return {
+        es: state.currentLang === "es",
+        plat: PLAT,
+        vos: vosforIcon(13),
+        t,
+        nombreDe: (slug) => {
+            const m = vosData?.tradables?.[slug];
+            return m ? (state.currentLang === "es" ? m[1] : m[0]) : slug;
+        },
+        nombresDe: (slug) => {
+            const m = vosData?.tradables?.[slug];
+            return m ? [m[0] || "", m[1] || ""] : [slug, slug];
+        },
+        imgArcano: arcaneImgHtml,
+        iconoSindicato: iconoSindicatoHtml,
+        estadoVacio: (q) => vosState("noresults", {
+            msg: (t.searchNoResults || "").replace("{q}", q),
+            actionLabel: t.searchClear,
+            action: "onVosforSindFiltroClear()",
+        }),
+    };
+}
 
-    if (!vosData) {
-        box.innerHTML = `<div style="text-align:center;color:#aaa;font-size:0.95rem;padding:24px;">${escapeHTML(t.loading || "Cargando datos…")}</div>`;
-        try {
-            vosData = await loadVosforData();
-        } catch (e) {
-            box.innerHTML = `<div style="text-align:center;color:#ff6666;font-size:0.92rem;padding:24px;">${escapeHTML(t.error || "Error al cargar los datos.")}</div>`;
-            return;
-        }
+function toolBodyHtml(key, bestRate = bestPackRate(vosData)) {
+    if (!vosData) return "";
+    if (key === "sell") return sellSimulatorCard();
+    if (key === "target") return targetArcaneSimulatorCard();
+    if (key === "ranking") return rankingLeaderboardCard(bestRate);
+    if (key === "pix") return pixCard(bestRate);
+    if (key === "sindicatos") return sindicatosCard(sindicatosDatos(bestRate), sindicatosCtx());
+    return "";
+}
+
+export function renderVosforPacks() {
+    const packsBox = document.getElementById("vosfor-packs");
+    if (!packsBox || !vosData) {
+        renderVosforTab();
+        return;
     }
-
+    const t = vosT();
     const bestRate = bestPackRate(vosData);
 
     const packsSorted = [...vosData.packs].sort((a, b) => {
@@ -1689,43 +1803,111 @@ export async function renderVosforTab() {
 
     const othersCard = vosData.others?.length ? packCard(othersPack(vosData), bestRate) : "";
 
-    box.innerHTML = `
-      <div class="vosfor-container">
-        <div class="vos-tools">
-          ${toolSection("sell", vosforIcon(20), t.toolSellTitle || "¿Vender o disolver?",
-    t.toolSellSub || "", sellSimulatorCard())}
-          ${toolSection("target", vosforIcon(20), t.toolTargetTitle || "Arcano objetivo",
-    t.toolTargetSub || "", targetArcaneSimulatorCard())}
-          ${toolSection("ranking", "🏆", t.toolRankingTitle || "Ranking",
-    t.toolRankingSub || "", rankingLeaderboardCard(bestRate))}
-          ${toolSection("pix", "🪙", t.toolPixTitle || "The Hex",
-    t.toolPixSub || "", pixCard(bestRate))}
-          ${toolSection("sindicatos", platIcon(20), t.toolSyndTitle || "Sindicatos", t.toolSyndSub || "",
-    sindicatosCard(rentaSindicatos(vosData, { stats: ARC_STATS, precioSuelto: realizableR0, precioMax: realizableMax, tasaPl: bestRate?.rate || 0, orden: ordenSindicatos() }), {
-        es: state.currentLang === "es", plat: PLAT, vos: vosforIcon(13), t,
-        nombreDe: (slug) => { const m = vosData.tradables?.[slug]; return m ? (state.currentLang === "es" ? m[1] : m[0]) : slug; },
-    }))}
-        </div>
-        ${guideBoxCard()}
-        ${searchAndControlsBar()}
+    packsBox.innerHTML = `
         ${searchResultsCard(bestRate)}
         <div class="vosfor-explain-text">${escapeHTML(t.explain || "")}</div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="vos-packs-list">
           ${packsSorted.map((p) => packCard(p, bestRate)).join("")}
           ${othersCard}
         </div>
-        <div style="font-size:0.75rem;color:var(--label-color);margin-top:6px;">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>
+        <div class="vos-data-note">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>`;
+
+    initJadeCosmicEasterEgg();
+}
+
+function vosTabs() {
+    const t = vosT();
+    const labels = { packs: t.tabPacks, calc: t.tabCalc, rank: t.tabRank };
+    const btns = VOS_TABS.map((k) => {
+        const isAct = activeTab === k;
+        return `<button type="button" class="vos-tab" role="tab" id="vos-tab-${k}" data-tab="${k}" aria-selected="${isAct ? "true" : "false"}" aria-controls="vos-panel-${k}" tabindex="${isAct ? "0" : "-1"}" onclick="setVosforTab('${k}')">${escapeHTML(labels[k] || "")}</button>`;
+    }).join("");
+    return `<div class="vos-tabs" role="tablist" aria-label="Vosfor" onkeydown="globalThis.onVosforTabKey(event)">${btns}</div>`;
+}
+
+function vosSubPanel(tab, bestRate) {
+    const t = vosT();
+    const subActivo = activeSub[tab];
+    const labels = {
+        sell: t.subSell,
+        target: t.toolTargetTitle,
+        ranking: "🏆 " + t.subRanking,
+        pix: "🪙 " + t.toolPixTitle,
+        sindicatos: t.toolSyndTitle,
+    };
+    const descs = {
+        sell: t.toolSellSub,
+        target: t.toolTargetSub,
+        ranking: t.toolRankingSub,
+        pix: t.toolPixSub,
+        sindicatos: t.toolSyndSub,
+    };
+    const btns = VOS_SUBS[tab].map((sub) => `<button type="button" class="vos-seg-btn" aria-pressed="${sub === subActivo ? "true" : "false"}" onclick="setVosforSub('${tab}','${sub}')">${escapeHTML(labels[sub] || "")}</button>`).join("");
+    return `
+      <div class="vos-seg" role="group" aria-label="${escapeHTML(tab === "calc" ? t.subCalcAria : t.subRankAria)}">${btns}</div>
+      <p class="vos-sub-desc">${escapeHTML(descs[subActivo] || "")}</p>
+      <div class="vos-sub-body" id="vos-sub-body" data-tool="${subActivo}">${toolBodyHtml(subActivo, bestRate)}</div>`;
+}
+
+export async function renderVosforTab() {
+    const box = document.getElementById("vosfor-content");
+    if (!box) return;
+    const t = vosT();
+
+    if (!vosData) {
+        box.innerHTML = vosSkeleton(4, t.loading, "page");
+        try {
+            vosData = await loadVosforData();
+        } catch {
+            box.innerHTML = vosState("error", {
+                msg: t.error,
+                hint: t.errorHint,
+                actionLabel: t.retry,
+                action: "retryVosforLoad()",
+            });
+            return;
+        }
+    }
+
+    const bestRate = bestPackRate(vosData);
+    const panels = VOS_TABS.map((k) => {
+        const isAct = activeTab === k;
+        const content = !isAct
+            ? ""
+            : k === "packs"
+                ? `${guideBoxCard()}${searchAndControlsBar()}<div id="vosfor-packs"></div>`
+                : vosSubPanel(k, bestRate);
+        return `<div class="vos-panel" role="tabpanel" id="vos-panel-${k}" aria-labelledby="vos-tab-${k}" tabindex="0"${isAct ? "" : " hidden"}>${content}</div>`;
+    }).join("");
+
+    box.innerHTML = `
+      <div class="vosfor-container">
+        ${vosTabs()}
+        ${panels}
       </div>`;
 
+    if (activeTab === "packs") renderVosforPacks();
     updateSellSimDOM();
     initJadeCosmicEasterEgg();
+}
+
+function refreshToolBodies() {
+    const body = document.getElementById("vos-sub-body");
+    if (!body || body.contains(document.activeElement)) return;
+    body.innerHTML = toolBodyHtml(body.dataset.tool, bestPackRate(vosData));
 }
 
 function scheduleRerender() {
     if (rerenderTimer) return;
     rerenderTimer = setTimeout(() => {
         rerenderTimer = null;
-        renderVosforTab();
+        if (document.querySelector(".vosfor-container") && vosData) {
+            refreshToolBodies();
+            if (document.getElementById("vosfor-packs")) renderVosforPacks();
+            updateSellSimDOM();
+        } else {
+            renderVosforTab();
+        }
     }, 350);
 }
 
@@ -1738,6 +1920,10 @@ export async function initVosforTab() {
 
     requestAllPacks().catch(console.error);
     requestPackStats({ id: "hex", items: HEX_ARCANES }, true).catch(console.error);
+    ensureSellArcSlug();
+    if (sellArcSlug && !ARC_STATS.has(sellArcSlug)) {
+        requestPackStats({ id: `sell_${sellArcSlug}`, items: [sellArcSlug] }, true).catch(console.error);
+    }
     requestPackStats({ id: "sindicatos", items: slugsDeSindicatos(vosData) }).catch(console.error);
 
     if (!globalRefreshTimer) {
@@ -1816,42 +2002,120 @@ export function onTargetPacksChange(val) {
     updateTargetSimDOM();
 }
 
+function renderOpenPackBody(packId = expandedPack) {
+    if (!packId || !vosData) return;
+    const pack = getPackById(packId);
+    const bodyEl = document.getElementById(`vosfor-pack-body-${packId}`);
+    if (!pack || !bodyEl) return;
+    bodyEl.innerHTML = packBodyHtml(pack, bestPackRate(vosData));
+    if (packId === "others") initJadeCosmicEasterEgg();
+}
+
 export function toggleVosforPack(packId) {
+    const prevPackId = expandedPack;
     expandedPack = expandedPack === packId ? null : packId;
+
+    if (expandAllPacks || searchQuery.trim().length > 0) {
+        if (expandedPack && vosData) {
+            const pack = getPackById(expandedPack);
+            if (pack) requestPackStats(pack, true).catch(console.error);
+        }
+        renderVosforPacks();
+        return;
+    }
+
+    if (prevPackId && prevPackId !== expandedPack) {
+        const prevBody = document.getElementById(`vosfor-pack-body-${prevPackId}`);
+        if (prevBody) {
+            prevBody.innerHTML = "";
+            const prevCard = prevBody.closest(".vos-pack");
+            if (prevCard) {
+                const prevHead = prevCard.querySelector(".vos-pack-head");
+                if (prevHead) prevHead.setAttribute("aria-expanded", "false");
+            }
+        }
+    }
+
     if (expandedPack && vosData) {
-        const pack = packId === "others" ? othersPack(vosData) : vosData.packs.find((p) => p.id === packId);
-        if (pack) requestPackStats(pack, true).catch(console.error);
+        const pack = getPackById(expandedPack);
+        const bodyEl = document.getElementById(`vosfor-pack-body-${expandedPack}`);
+        if (bodyEl && pack) {
+            bodyEl.innerHTML = packBodyHtml(pack, bestPackRate(vosData));
+            const card = bodyEl.closest(".vos-pack");
+            if (card) {
+                const head = card.querySelector(".vos-pack-head");
+                if (head) head.setAttribute("aria-expanded", "true");
+            }
+            if (expandedPack === "others") initJadeCosmicEasterEgg();
+        }
+        if (pack) {
+            const currentId = expandedPack;
+            requestPackStats(pack, true).then(() => {
+                if (expandedPack === currentId && !expandAllPacks && !searchQuery.trim()) {
+                    renderOpenPackBody(currentId);
+                }
+            }).catch(console.error);
+        }
+    }
+}
+
+export function setVosforTab(k) {
+    if (!VOS_TABS.includes(k)) return;
+    const prev = document.activeElement;
+    const keepFocus = !prev || prev === document.body || prev.classList?.contains("vos-tab");
+    activeTab = k;
+    if (activeTab !== "rank") setFiltroSindicatos("");
+    saveVosPref("vosfor_tab", k);
+    renderVosforTab();
+    if (keepFocus) document.getElementById(`vos-tab-${k}`)?.focus({ preventScroll: true });
+}
+
+export function setVosforSub(tab, k) {
+    if (!VOS_SUBS[tab]?.includes(k)) return;
+    activeSub[tab] = k;
+    saveVosPref(`vosfor_sub_${tab}`, k);
+    renderVosforTab();
+}
+
+export function onVosforTabKey(e) {
+    const idx = VOS_TABS.indexOf(activeTab);
+    let nextIdx = -1;
+    if (e.key === "ArrowRight") nextIdx = (idx + 1) % VOS_TABS.length;
+    else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + VOS_TABS.length) % VOS_TABS.length;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = VOS_TABS.length - 1;
+    else return;
+    e.preventDefault();
+    const nueva = VOS_TABS[nextIdx];
+    setVosforTab(nueva);
+    document.getElementById(`vos-tab-${nueva}`)?.focus();
+}
+
+export function onVosforGuideToggle() {
+    markGuideSeen();
+}
+
+export function onVosforSearchClear() {
+    searchQuery = "";
+    renderVosforTab();
+}
+
+export function retryVosforLoad() {
+    vosData = null;
+    renderVosforTab();
+}
+
+export function simulateArcane(slug) {
+    activeTab = "calc";
+    activeSub.calc = "sell";
+    saveVosPref("vosfor_tab", "calc");
+    saveVosPref("vosfor_sub_calc", "sell");
+    sellArcSlug = slug;
+    if (vosData && !ARC_STATS.has(slug)) {
+        requestPackStats({ id: `sell_${slug}`, items: [slug] }, true).catch(console.error);
     }
     renderVosforTab();
-}
-
-export function toggleVosforGuide() {
-    showGuide = !showGuide;
-    renderVosforTab();
-}
-
-function toolSection(key, icon, title, subtitle, bodyHtml) {
-    const open = openTools.has(key);
-    return `
-    <section class="vos-tool ${open ? "open" : ""}" data-tool="${escapeHTML(key)}">
-      <button type="button" class="vos-tool-head" onclick="toggleVosforTool('${escapeHTML(key)}')"
-        aria-expanded="${open ? "true" : "false"}">
-        <span class="vos-tool-icon">${icon}</span>
-        <span class="vos-tool-text">
-          <span class="vos-tool-title">${escapeHTML(title)}</span>
-          <span class="vos-tool-sub">${escapeHTML(subtitle)}</span>
-        </span>
-        <span class="vos-tool-arrow">▾</span>
-      </button>
-      <div class="vos-tool-body">${bodyHtml}</div>
-    </section>`;
-}
-
-export function toggleVosforTool(key) {
-    if (openTools.has(key)) openTools.delete(key);
-    else openTools.add(key);
-    localStorage.setItem("vosfor_open_tools", JSON.stringify([...openTools]));
-    renderVosforTab();
+    document.getElementById("vos-panel-calc")?.scrollIntoView({ block: "start" });
 }
 
 export function toggleVosforExpandAll() {
@@ -1862,6 +2126,28 @@ export function toggleVosforExpandAll() {
 export function onVosforSearchInput(val) {
     searchQuery = val || "";
     scheduleRerender();
+}
+
+function repintarResultadosSindicatos() {
+    const box = document.getElementById("vos-sind-resultados");
+    if (box && vosData) {
+        box.innerHTML = sindicatosResultadosHtml(sindicatosDatos(), sindicatosCtx());
+    }
+    const btn = document.getElementById("sindFiltroClear");
+    if (btn) btn.hidden = !filtroSindicatos();
+}
+
+export function onVosforSindFiltro(val) {
+    setFiltroSindicatos(val);
+    repintarResultadosSindicatos();
+}
+
+export function onVosforSindFiltroClear() {
+    setFiltroSindicatos("");
+    const input = document.getElementById("sindFiltroInput");
+    if (input) input.value = "";
+    repintarResultadosSindicatos();
+    input?.focus();
 }
 
 if (typeof window !== "undefined") {
@@ -1877,7 +2163,15 @@ if (typeof window !== "undefined") {
 
 exposeGlobals({
     initVosforTab,
-    toggleVosforTool,
+    renderVosforPacks,
+    packBodyHtml,
+    setVosforTab,
+    setVosforSub,
+    onVosforTabKey,
+    onVosforGuideToggle,
+    onVosforSearchClear,
+    retryVosforLoad,
+    simulateArcane,
     setVosforRankTab,
     setVosforRankSubToggle,
     setVosforRankLimit,
@@ -1889,9 +2183,10 @@ exposeGlobals({
     toggleVosforPack,
     setVosforSort,
     setVosforSindOrden,
-    toggleVosforGuide,
     toggleVosforExpandAll,
     onVosforSearchInput,
+    onVosforSindFiltro,
+    onVosforSindFiltroClear,
     onTargetArcQuickSearch,
     showTargetArcDropdown,
     hideTargetArcDropdown,

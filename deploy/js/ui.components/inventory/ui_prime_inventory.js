@@ -1,9 +1,9 @@
 import { state, saveAppState } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { addToQueue, getPriceValue } from "../../services/market/prices.service.js";
-import { warmupPrices } from "../../services/inventory/inventory.service.js";
-import { setTrendHtml, wireSetTrend } from "./ui_set_trend.js";
-import { venderYaHtml, wireVenderYa, cicloVaultHtml, wireCicloVault } from "./ui_vender_ya.js";
+import { warmupPrices, momentoSets, momentoListo } from "../../services/inventory/inventory.service.js";
+import { invCardHtml, wireInvCard } from "./ui_inventory_card.js";
+import { iniciaMomento, momentoSlotsHtml } from "./ui_momento.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { emptyStateHtml, showCustomConfirm, showToast } from "../ui_components.js";
@@ -107,8 +107,12 @@ export function modifyPrimePart(name, amount) {
         const fullSets = calculateTotalFullSets(setName);
         const setBadge = document.querySelector(`#set-group-${safeSetNameId} .set-count-badge`);
         if (setBadge) {
+          const invT = TEXTS[state.currentLang].inventory;
+          const badgeTip = fullSets === 1 ? invT.setTipCompletosUno : (invT.setTipCompletos || "").replace("{n}", fullSets);
           setBadge.innerHTML = `${fullSets} ${fullSets === 1 ? 'SET' : 'SETS'}`;
           setBadge.style.display = fullSets > 0 ? "inline-block" : "none";
+          setBadge.dataset.tooltip = badgeTip;
+          setBadge.setAttribute("aria-label", badgeTip);
         }
       }
 
@@ -228,11 +232,6 @@ export function toggleInvSet(safeSetId) {
 
 export function openSetDetail(setName) {
   globalThis.navegarA({ tab: "set", ctx: setName });
-  const input = document.getElementById("setItemInput");
-  if (input) {
-    input.value = setName;
-    globalThis.handleSetTyping();
-  }
 }
 
 let lastRenderedHash = "";
@@ -242,28 +241,26 @@ function sellTagHtml(setName, numSets) {
 
   const t = TEXTS[state.currentLang];
   if (globalThis.isSetListed?.(getSlug(setName + " Set"))) {
-    return `<span class="set-listed-tag" title="${escapeHTML(t.setListedTitle)}">${escapeHTML(t.setListed)}</span>`;
+    return `<span class="set-listed-tag" tabindex="0" data-tooltip="${escapeHTML(t.setListedTitle)}" aria-label="${escapeHTML(t.setListedTitle)}">${escapeHTML(t.setListed)}</span>`;
   }
 
   if (!globalThis.canPublishToWfm?.()) return "";
 
-  return `<button type="button" class="set-sell-btn" data-action="go-sell-set" data-setname="${escapeHTML(setName)}" title="${escapeHTML(t.sellSetTitle)}">${escapeHTML(t.sellSet)}</button>`;
+  return `<button type="button" class="set-sell-btn" data-action="go-sell-set" data-setname="${escapeHTML(setName)}" data-tooltip="${escapeHTML(t.sellSetTitle)}" aria-label="${escapeHTML(t.sellSetTitle)}">${escapeHTML(t.sellSet)}</button>`;
 }
 
 export function renderPrimeInventory() {
   const list = document.getElementById("inventory-list-parts");
   if (!list) return;
 
-  const panel = document.getElementById("inventory-sidebar");
-  if (panel && !panel.classList.contains("open")) return;
-
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
 
   // showEmptyPrime is part of the hash, or toggling it repainted nothing
-  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
+  const baseHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
     + (state.settings?.showEmptyPrime ? "|0s" : "")
     + "|" + Object.keys(state.setsDatabase || {}).length;
+  const newHash = baseHash + (momentoListo() ? "|m" : "");
   if (newHash === lastRenderedHash && list.children.length > 0) {
     setTimeout(updatePrimeTotalValue, 10);
     return;
@@ -392,7 +389,7 @@ export function renderPrimeInventory() {
       <div class="inventory-total-header">
          <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
          <div class="total-value"><span id="total-prime-value">...</span> <span class="plat-icon-inline"></span></div>
-      </div>${setTrendHtml()}${venderYaHtml()}${cicloVaultHtml()}`;
+      </div>${invCardHtml()}`;
 
     if (list.querySelector(".inventory-total-header")) {
       const oldTotal = document.getElementById("total-prime-value")?.textContent;
@@ -401,9 +398,14 @@ export function renderPrimeInventory() {
     } else {
       list.innerHTML = headerHtml;
     }
-    wireSetTrend(list);
-    wireVenderYa(list);
-    wireCicloVault(list);
+    const vigente = () => globalThis.primeRenderId === currentRenderId;
+    const promesaMomento = momentoSets();
+    promesaMomento.then(() => {
+      if (vigente() && lastRenderedHash === baseHash && momentoListo()) lastRenderedHash = baseHash + "|m";
+    }, () => {});
+    wireInvCard(list, promesaMomento, vigente);
+    const pintaMomento = iniciaMomento(list, vigente, promesaMomento);
+    const momentoSlots = momentoSlotsHtml();
 
     let currentIndex = 0;
     const renderChunk = () => {
@@ -433,15 +435,20 @@ export function renderPrimeInventory() {
         const maxRequired = rowParts.reduce((m, p) => Math.max(m, getRequiredCount(setName, p)), 1);
         const dotsPlaceholder = `<div class="inv-dots-ph" aria-hidden="true">${generateDotsHtml(0, maxRequired)}</div><div class="inv-dots-ph inv-qty-ph" aria-hidden="true">${generateDotsHtml(88, 1)}</div>`;
 
+        const invT = TEXTS[state.currentLang].inventory;
+        const badgeTip = numSets === 1 ? invT.setTipCompletosUno : (invT.setTipCompletos || "").replace("{n}", numSets);
+        const trackerAria = (invT.cardTipTrackerSet || "").replace("{set}", setName);
+        const marketAria = (invT.cardTipMarketSet || "").replace("{set}", setName);
+
         let groupHtml = `
-      <div class="inv-set-group${openSetGroups.has(safeSetId) ? "" : " collapsed"}" id="set-group-${safeSetId}">
+      <div class="inv-set-group${openSetGroups.has(safeSetId) ? "" : " collapsed"}" id="set-group-${safeSetId}" data-set="${escapeHTML(setName)}">
         <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}" style="cursor:pointer;">
           <div class="header-controls">
             <div style="display:flex; gap:4px;">
-              ${numSets >= 1 ? `<button class="delete-set-btn" data-action="decrement-prime-set" data-setname="${escapeHTML(setName)}" title="-1 Set" style="font-size:0.75em; padding: 2px 4px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px; cursor: pointer; transition: all 0.2s; line-height: 1;">-1</button>` : ''}
-              <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}" title="Delete Everything">×</button>
+              ${numSets >= 1 ? `<button type="button" class="delete-set-btn" data-action="decrement-prime-set" data-setname="${escapeHTML(setName)}" data-tooltip="${escapeHTML(invT.setTipDecrement)}" aria-label="${escapeHTML(invT.setTipDecrement)}" style="font-size:0.75em; padding: 2px 4px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px; cursor: pointer; transition: all 0.2s; line-height: 1;">-1</button>` : ''}
+              <button type="button" class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}" data-tooltip="${escapeHTML(invT.setTipDelete)}" aria-label="${escapeHTML(invT.setTipDelete)}">×</button>
             </div>
-            <span class="toggle-icon">▼</span>
+            <span class="toggle-icon" data-tooltip="${escapeHTML(invT.setTipToggle)}">▼</span>
           </div>
           
           <div class="header-main">
@@ -452,18 +459,22 @@ export function renderPrimeInventory() {
               : "";
           })()}
             <span class="set-title">${escapeHTML(setName)}</span>
-            <span class="tracker-link-icon" data-action="open-set-detail" data-setname="${escapeHTML(setName)}" title="Set Tracker" style="cursor:pointer; margin-left:8px; display:inline-flex; align-items:center; vertical-align:middle; flex-shrink:0;">
+            <button type="button" class="tracker-link-icon inv-card-btn" data-action="open-set-detail" data-setname="${escapeHTML(setName)}" data-tooltip="${escapeHTML(invT.cardTipTracker)}" aria-label="${escapeHTML(trackerAria)}">
               ${TARGET_SVG_INLINE}
-            </span>
-            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()" style="margin-left:6px; flex-shrink:0; font-size:1.1em;">↗</a>
+            </button>
+            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" rel="noopener noreferrer" class="market-link-icon" data-tooltip="${escapeHTML(invT.cardTipMarket)}" aria-label="${escapeHTML(marketAria)}" style="margin-left:6px; flex-shrink:0; font-size:1.1em;">↗</a>
           </div>
 
+          ${momentoSlots.spark}
+
           <div class="header-info">
-             <span class="set-count-badge" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} ${numSets === 1 ? 'SET' : 'SETS'}</span>
+             ${momentoSlots.slot}
+             <span class="set-count-badge" tabindex="0" data-tooltip="${escapeHTML(badgeTip)}" aria-label="${escapeHTML(badgeTip)}" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} ${numSets === 1 ? 'SET' : 'SETS'}</span>
              ${sellTagHtml(setName, numSets)}
-             <span class="set-total-price" id="set-price-${safeSetId}">0 <span class="plat-icon-inline"></span></span>
-             <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none;">...</span>
+             <span class="set-total-price" id="set-price-${safeSetId}" tabindex="0">0 <span class="plat-icon-inline"></span></span>
+             <span id="set-mkt-${safeSetId}" class="set-price-marker" tabindex="0" style="display:none;">...</span>
           </div>
+          ${momentoSlots.fase}
         </div>
         <div class="inv-set-content">
           ${rowParts
@@ -495,8 +506,8 @@ export function renderPrimeInventory() {
                 </div>
 
                 <div class="row-info">
-                   <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
-                   <span class="ratio-tag" id="ratio-p-${safeId}" title="${escapeHTML((TEXTS[state.currentLang].ducanator || {}).effTitle || "Ducados por platino")}">${(() => {
+                   <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" rel="noopener noreferrer" class="market-link-icon-mini" data-tooltip="${escapeHTML(invT.setTipMarketParte)}" aria-label="${escapeHTML((invT.cardTipMarketSet || "").replace("{set}", partName))}" onclick="event.stopPropagation()">↗</a>
+                   <span class="ratio-tag" id="ratio-p-${safeId}" data-tooltip="${escapeHTML((TEXTS[state.currentLang].ducanator || {}).effTitle || "Ducados por platino")}">${(() => {
                   const dv = getPartDucats(partName);
                   const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
                   const p = (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) ? Number.parseInt(cached, 10) : null;
@@ -536,7 +547,9 @@ export function renderPrimeInventory() {
         fragment.appendChild(tempDiv.firstElementChild);
       }
 
+      const nuevos = [...fragment.children];
       list.appendChild(fragment);
+      nuevos.forEach(pintaMomento);
       updatePrimeTotalValue();
 
       if (currentIndex < setNames.length) {
@@ -616,6 +629,7 @@ export async function updatePrimeTotalValue() {
 
     if (cachedRaw !== undefined) {
       if (!Number.isNaN(price) && mktEl) {
+        const mktTip = (TEXTS[state.currentLang].inventory.cardTipPrecio || "").replace("{p}", price);
         mktEl.classList.remove("price-loading-blink");
         mktEl.innerHTML = `
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0; margin-top:2px;">
@@ -623,11 +637,15 @@ export async function updatePrimeTotalValue() {
             <span style="font-size:0.85em;">${price} <span class="plat-icon-inline"></span></span>
           </div>
         `;
+        mktEl.dataset.tooltip = mktTip;
+        mktEl.setAttribute("aria-label", mktTip);
         mktEl.style.display = "inline-block";
       }
     } else if (mktEl) {
       mktEl.classList.add("price-loading-blink");
       if (mktEl.textContent === "") mktEl.textContent = "...";
+      delete mktEl.dataset.tooltip;
+      mktEl.removeAttribute("aria-label");
       mktEl.style.display = "inline-block";
     }
 
@@ -635,13 +653,18 @@ export async function updatePrimeTotalValue() {
     invGroups[setNameRaw].setPriceLoaded = (cachedRaw !== undefined);
   });
 
+  const invT = TEXTS[state.currentLang].inventory;
   Object.keys(invGroups).forEach((setName) => {
     const subtotal = calculateGroupSubtotal(setName, invGroups[setName]);
     const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
 
     const el = document.getElementById(`set-price-${safeSetId}`);
     if (el) {
-      el.innerHTML = `${new Intl.NumberFormat().format(subtotal)} <span class="plat-icon-inline"></span>`;
+      const formatted = new Intl.NumberFormat().format(subtotal);
+      const valTip = (invT.setTipValor || "").replace("{p}", formatted);
+      el.innerHTML = `${formatted} <span class="plat-icon-inline"></span>`;
+      el.dataset.tooltip = valTip;
+      el.setAttribute("aria-label", valTip);
     }
     totalGlobal += subtotal;
   });

@@ -4,6 +4,7 @@ import { escapeHTML } from "../ui_components.js";
 import { serverNow } from "../../services/server_clock.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { getItemIcon, progresoSets } from "../../utils/ui_utils.js";
+import { farmLinkHtml } from "../../utils/farm_links.js";
 
 const API = "https://api.warframestat.us/pc";
 const CACHE_MS = 5 * 60 * 1000;
@@ -208,16 +209,17 @@ function itemListHtml(items, costLabel, withCredits, opts = {}) {
       const icons = opts.iconsHtml ? opts.iconsHtml(it) : opts.icons ? iconsHtml(opts.icons(it)) : "";
       const name = prettyTraderItem(it);
       const rotTag = opts.rotating?.has(name) ? `<span class="tr-rot-tag">${escapeHTML(t.inRotation || "in rotation")}</span>` : "";
-      if (prog?.total) return setItemHtml(name, icons, costs, sets, prog, t, rotTag);
+      if (prog?.total) return setItemHtml(name, icons, costs, sets, prog, t, rotTag, opts.linkKind);
+      const nameHtml = opts.linkKind ? farmLinkHtml(name, opts.linkKind) : escapeHTML(name);
       const label = rotTag
-        ? `<span class="tr-name-wrap"><span class="tr-item-name">${escapeHTML(name)}</span>${rotTag}</span>`
-        : `<span class="tr-item-name">${escapeHTML(name)}</span>`;
+        ? `<span class="tr-name-wrap"><span class="tr-item-name">${nameHtml}</span>${rotTag}</span>`
+        : `<span class="tr-item-name">${nameHtml}</span>`;
       return `<li class="${itemCls}">${icons || `<span class="tr-icons"></span>`}${label}<span class="tr-item-cost">${costs.join(" · ")}</span></li>`;
     })
     .join("")}</ul>`;
 }
 
-function setItemHtml(name, icons, costs, sets, prog, t = TEXTS[state.currentLang]?.traders || {}, rotTag = "") {
+function setItemHtml(name, icons, costs, sets, prog, t = TEXTS[state.currentLang]?.traders || {}, rotTag = "", linkKind = null) {
   const varios = sets.length > 1;
   const full = prog.sets || 0;
   const have = prog.tengo || 0;
@@ -249,9 +251,10 @@ function setItemHtml(name, icons, costs, sets, prog, t = TEXTS[state.currentLang
       );
     })
     .join("");
+  const nameHtml = linkKind ? farmLinkHtml(name, linkKind) : escapeHTML(name);
   const title = rotTag
-    ? `<span class="tr-name-wrap"><span class="tr-item-name">${escapeHTML(name)}</span>${rotTag}</span>`
-    : `<span class="tr-item-name">${escapeHTML(name)}</span>`;
+    ? `<span class="tr-name-wrap"><span class="tr-item-name">${nameHtml}</span>${rotTag}</span>`
+    : `<span class="tr-item-name">${nameHtml}</span>`;
   return `<li class="tr-item tr-set tr-set--${status}"><details><summary class="tr-set-head">${icons || `<span class="tr-icons"><span class="tr-icon"></span></span>`}${title}<span class="tr-set-badge ${status}">${escapeHTML(badge)}</span><span class="tr-item-cost">${costs.join(" · ")}</span><span class="tr-set-bar"><i style="width:${pct}%"></i></span></summary><ul class="tr-set-parts">${cuerpo}</ul></details></li>`;
 }
 
@@ -285,8 +288,8 @@ function varziaHtml(vault, t) {
   const groups =
     groupHtml(t.rotation, packs, t.regalAya, false, { coin: "regal-aya", icons: packFrames, tiles: true, itemClass: "tr-pack" }) +
     groupHtml(t.yourWarframes, inv.filter(isTraderFrame), t.regalAya, false, { coin: "regal-aya", icons: selfIcon, sets: selfIcon, rotating, t }) +
-    groupHtml(t.yourWeapons, inv.filter(isTraderWeapon), t.regalAya, false, { coin: "regal-aya", icons: selfIcon, sets: selfIcon, rotating, t }) +
-    groupHtml(t.relics, relics, t.aya, false, { coin: "aya", iconsHtml: relicTierHtml });
+    groupHtml(t.yourWeapons, inv.filter(isTraderWeapon), t.regalAya, false, { coin: "regal-aya", icons: selfIcon, sets: selfIcon, rotating, t, linkKind: "weapon" }) +
+    groupHtml(t.relics, relics, t.aya, false, { coin: "aya", iconsHtml: relicTierHtml, linkKind: "relic" });
   const next = nextVaultRotation(vault, now);
   const nextHtml = next
     ? `<div class="tr-next">
@@ -321,7 +324,7 @@ function baroHtml(baro, t) {
     : `<div class="tr-timer-label">${escapeHTML(t.arrivesIn)}</div>${countdownHtml(baro.activation)}`;
   const groups =
     groupHtml(t.primedMods, inv.filter(isPrimedMod), t.ducats, true) +
-    groupHtml(t.weapons, inv.filter(isTraderWeapon), t.ducats, true);
+    groupHtml(t.weapons, inv.filter(isTraderWeapon), t.ducats, true, { linkKind: "weapon" });
   const body = active
     ? groups || `<div class="tr-empty">${escapeHTML(t.noItems)}</div>`
     : `<div class="tr-meta">${escapeHTML(t.arrives)} ${escapeHTML(formatDate(baro.activation))} · ${escapeHTML(t.leaves)} ${escapeHTML(formatDate(baro.expiry))}</div>`;
